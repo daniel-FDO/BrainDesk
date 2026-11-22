@@ -1,7 +1,7 @@
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Chip, EmptyState, Icon } from '../components/ui.tsx'
-import { resources as seedResources } from '../data.ts'
 import { SUBJECTS, SUBJECT_TONE } from '../lib/subjects.ts'
+import { createResource, deleteResource, listResources, setResourcePinned } from '../lib/workspaceApi.ts'
 import type { Resource, ResourceType, Subject } from '../types.ts'
 
 const TYPE_META: Record<ResourceType, { label: string; plural: string; icon: string }> = {
@@ -40,7 +40,9 @@ function normalizeUrl(raw: string): string | null {
 }
 
 export function Resources() {
-  const [items, setItems] = useState<Resource[]>(seedResources)
+  const [items, setItems] = useState<Resource[]>([])
+  const [load, setLoad] = useState<'loading' | 'ready' | 'failed'>('loading')
+  const [actionError, setActionError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
   const [subject, setSubject] = useState<SubjectFilter>('all')
@@ -57,8 +59,41 @@ export function Resources() {
   const rest = visible.filter((r) => !r.pinned)
   const filtered = type !== 'all' || subject !== 'all' || query.trim() !== ''
 
-  const togglePin = (id: string) => setItems((prev) => prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r)))
-  const remove = (id: string) => setItems((prev) => prev.filter((r) => r.id !== id))
+  useEffect(() => {
+    const controller = new AbortController()
+    listResources(controller.signal)
+      .then((loaded) => {
+        setItems(loaded)
+        setLoad('ready')
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoad('failed')
+      })
+    return () => controller.abort()
+  }, [])
+
+  async function run(action: () => Promise<void>, failure: string) {
+    setActionError(null)
+    try {
+      await action()
+    } catch {
+      setActionError(failure)
+    }
+  }
+
+  const togglePin = (id: string) =>
+    run(async () => {
+      const current = items.find((r) => r.id === id)
+      if (!current) return
+      const saved = await setResourcePinned(id, !current.pinned)
+      setItems((prev) => prev.map((r) => (r.id === id ? saved : r)))
+    }, 'Couldn’t update the pin.')
+
+  const remove = (id: string) =>
+    run(async () => {
+      await deleteResource(id)
+      setItems((prev) => prev.filter((r) => r.id !== id))
+    }, 'Couldn’t remove that resource.')
 
   function clearFilters() {
     setQuery('')
@@ -92,8 +127,9 @@ export function Resources() {
       {adding && (
         <AddResourceForm
           onCancel={() => setAdding(false)}
-          onAdd={(r) => {
-            setItems((prev) => [r, ...prev])
+          onAdd={async (input) => {
+            const saved = await createResource(input)
+            setItems((prev) => [saved, ...prev])
             setAdding(false)
           }}
         />
@@ -143,13 +179,26 @@ export function Resources() {
         ))}
       </div>
 
+      {actionError && (
+        <p className="form-error" role="alert">
+          <Icon name="error" /> {actionError}
+        </p>
+      )}
+
       <p className="sr-only" role="status">
         {visible.length} {visible.length === 1 ? 'resource' : 'resources'} shown
       </p>
 
-      {visible.length === 0 ? (
+      {load !== 'ready' ? (
         <div className="card">
-          <EmptyState icon="search_off" title="No resources match">
+          <EmptyState
+            icon={load === 'loading' ? 'hourglass_top' : 'cloud_off'}
+            title={load === 'loading' ? 'Loading your library…' : 'Couldn’t load your resources'}
+          />
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="card">
+          <EmptyState icon={filtered ? 'search_off' : 'local_library'} title={filtered ? 'No resources match' : 'Your library is empty'}>
             {filtered ? (
               <button type="button" className="link" onClick={clearFilters}>
                 Clear filters
@@ -278,15 +327,22 @@ function ResourceCard({
   )
 }
 
-function AddResourceForm({ onAdd, onCancel }: { onAdd: (r: Resource) => void; onCancel: () => void }) {
+function AddResourceForm({
+  onAdd,
+  onCancel,
+}: {
+  onAdd: (input: { title: string; type: ResourceType; subject: Subject; url?: string }) => Promise<void>
+  onCancel: () => void
+}) {
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
   const [type, setType] = useState<ResourceType>('link')
   const [subject, setSubject] = useState<Subject>(SUBJECTS[0])
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     const cleanTitle = title.trim()
     if (!cleanTitle) {
@@ -299,16 +355,14 @@ function AddResourceForm({ onAdd, onCancel }: { onAdd: (r: Resource) => void; on
       setError('That link doesn’t look like a web address. Try something like https://example.com.')
       return
     }
-    onAdd({
-      id: `res-${Date.now()}`,
-      title: cleanTitle,
-      type,
-      subject,
-      source: cleanUrl ? new URL(cleanUrl).hostname.replace(/^www\./, '') : 'Added by you',
-      added: 'Just now',
-      url: cleanUrl,
-      pinned: false,
-    })
+    setBusy(true)
+    setError(null)
+    try {
+      await onAdd({ title: cleanTitle, type, subject, url: cleanUrl })
+    } catch {
+      setError('Couldn’t save the resource. Check your connection and try again.')
+      setBusy(false)
+    }
   }
 
   return (
@@ -371,8 +425,8 @@ function AddResourceForm({ onAdd, onCancel }: { onAdd: (r: Resource) => void; on
         <button type="button" className="btn btn--ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn btn--primary">
-          <Icon name="add" /> Add resource
+        <button type="submit" className="btn btn--primary" disabled={busy}>
+          <Icon name="add" /> {busy ? 'Saving…' : 'Add resource'}
         </button>
       </div>
     </form>

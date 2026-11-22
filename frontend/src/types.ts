@@ -5,45 +5,33 @@ export type Tone = 'blue' | 'teal' | 'violet' | 'slate' | 'amber'
 
 export type Subject = 'Computer Science' | 'Cellular Biology' | 'Mathematics' | 'Neuroscience'
 
-export interface Course {
-  id: string
-  name: string
-  code: string
-  summary: string
-  icon: string
-  tone: Tone
-  notes: number
-  resources: number
-  nextSession: { when: string; title: string }
-}
-
+/** A study session as the Dashboard and notifications show it. */
 export interface StudySession {
   id: string
+  subject: Subject
   tag: string
   tone: Tone
   title: string
   minutes: number
   goal: string
+  /** ISO timestamp from the API. */
+  startsAt: string
+  /** Display label such as "Today, 16:00". */
   when: string
   isNext?: boolean
-}
-
-export interface RecentNote {
-  id: string
-  title: string
-  excerpt: string
-  tags: string[]
-  edited: string
-  starred: boolean
 }
 
 export interface Note {
   id: string
   subject: Subject
   title: string
+  /** Full Markdown body (the API's `content`). */
+  body: string
+  /** First ~160 characters of the body, flattened. */
   excerpt: string
   tags: string[]
-  updated: string
+  /** ISO timestamp of the last edit. */
+  updatedAt: string
   favorite: boolean
 }
 
@@ -84,16 +72,18 @@ export type BlockStatus = 'completed' | 'in-progress' | 'upcoming'
 
 export interface LearningBlock {
   id: string
-  day: number
+  /** ISO start time from the API. */
+  startsAt: string
+  /** Local calendar day, "2026-11-22", for the week strip. */
+  dateKey: string
   when: string
+  subject: Subject
   tag: string
   minutes: number
   tone: Tone
   status: BlockStatus
   title: string
   detail: string
-  /** Weeks from the seeded planner week; omitted means that week. */
-  week?: number
   reminder?: boolean
 }
 

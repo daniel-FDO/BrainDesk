@@ -36,9 +36,9 @@ const FREQUENCIES = ["Daily", "Every 2 days", "Weekly"];
 const NO_SUMMARY = "No description yet.";
 
 const TABS: { id: Tab; label: string; count?: number }[] = [
-  { id: "notes", label: "Notes", count: 14 },
-  { id: "pdfs", label: "PDFs", count: 4 },
-  { id: "sessions", label: "Sessions", count: 3 },
+  { id: "notes", label: "Notes" },
+  { id: "pdfs", label: "PDFs" },
+  { id: "sessions", label: "Sessions" },
   { id: "ai", label: "AI Practice" },
 ];
 

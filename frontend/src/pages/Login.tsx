@@ -43,6 +43,11 @@ export function Login() {
           BrainDesk
         </div>
         <h1 className="auth__title">{isRegister ? 'Create your account' : 'Welcome back'}</h1>
+        <p className="auth__lead">
+          {isRegister
+            ? 'Your notes, sessions and resources, saved in one calm place.'
+            : 'Pick up exactly where you left off.'}
+        </p>
 
         {isRegister && (
           <label className="field">

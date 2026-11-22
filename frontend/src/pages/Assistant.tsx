@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type Keybo
 import { Icon } from '../components/ui.tsx'
 import { askAssistant, type Scope } from '../lib/assistant.ts'
 import { SUBJECTS, SUBJECT_TONE } from '../lib/subjects.ts'
-import type { ChatMessage, Note } from '../types.ts'
+import type { ChatMessage, Note, StudySession } from '../types.ts'
 
 const SUGGESTIONS = [
   { icon: 'quiz', label: 'Quiz me', prompt: 'Quiz me on Computer Science' },
@@ -56,13 +56,14 @@ function RichText({ text }: { text: string }) {
 
 interface AssistantProps {
   notes: Note[]
+  upcoming: StudySession[]
   onOpenNote: (id: string) => void
   /** Sent automatically on arrival, e.g. from "Generate Quiz" on another page. */
   initialPrompt?: string | null
   onInitialPromptUsed?: () => void
 }
 
-export function Assistant({ notes, onOpenNote, initialPrompt, onInitialPromptUsed }: AssistantProps) {
+export function Assistant({ notes, upcoming, onOpenNote, initialPrompt, onInitialPromptUsed }: AssistantProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [scope, setScope] = useState<Scope>('all')
@@ -92,7 +93,7 @@ export function Assistant({ notes, onOpenNote, initialPrompt, onInitialPromptUse
     setDraft('')
     setPending(true)
     try {
-      const reply = await askAssistant(prompt, { notes, scope })
+      const reply = await askAssistant(prompt, { notes, upcoming, scope })
       if (turn !== conversation.current) return
       setMessages((prev) => [...prev, { id: newId(), role: 'assistant', ...reply }])
     } catch {

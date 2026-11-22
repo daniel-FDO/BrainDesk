@@ -3,40 +3,44 @@ import { Menu } from '../components/Menu.tsx'
 import { Chip, EmptyState, Icon, Ring } from '../components/ui.tsx'
 import { useFocusTimer } from '../context/FocusTimer.tsx'
 import { FOCUS_MODES, FOCUS_MODE_IDS } from '../lib/focusModes.ts'
-import { TODAY, initialAgenda, learningBlocks, weekDays, weeklyHours } from '../data.ts'
 import { formatClock, formatFileSize } from '../lib/format.ts'
-import type { AgendaTask, BlockStatus, LearningBlock, Route, Tone } from '../types.ts'
-
-/** Monday of the week the seeded plan belongs to; `week` offsets count from here. */
-const BASE_MONDAY = new Date(2024, 9, 21)
+import { SUBJECTS } from '../lib/subjects.ts'
+import { addDays, dateKey, monthDay, startOfWeek } from '../lib/time.ts'
+import {
+  createSession,
+  createTask,
+  deleteSession,
+  deleteTask,
+  listTodayTasks,
+  listWeekBlocks,
+  setTaskDone,
+  updateSession,
+  weeklyHours,
+  type DayHours,
+  type NewSession,
+} from '../lib/workspaceApi.ts'
+import type { AgendaTask, BlockStatus, LearningBlock, Route, Subject } from '../types.ts'
 
 interface PlannerDay {
   date: Date
+  key: string
   day: number
   label: string
   weekend: boolean
 }
 
-function daysOfWeek(week: number): PlannerDay[] {
+function daysOfWeek(weekStart: Date): PlannerDay[] {
   return Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(BASE_MONDAY.getFullYear(), BASE_MONDAY.getMonth(), BASE_MONDAY.getDate() + week * 7 + i)
+    const date = addDays(weekStart, i)
     return {
       date,
+      key: dateKey(date),
       day: date.getDate(),
-      label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+      label: date.toLocaleDateString('en-GB', { weekday: 'short' }),
       weekend: i >= 5,
     }
   })
 }
-
-const monthDay = (date: Date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-
-const SUBJECT_TAGS: { tag: string; tone: Tone }[] = [
-  { tag: 'CS', tone: 'blue' },
-  { tag: 'Bio', tone: 'teal' },
-  { tag: 'Math', tone: 'violet' },
-  { tag: 'Neuro', tone: 'slate' },
-]
 
 const STATUS: Record<BlockStatus, { label: string; icon: string }> = {
   completed: { label: 'Completed', icon: 'check_circle' },
@@ -46,39 +50,113 @@ const STATUS: Record<BlockStatus, { label: string; icon: string }> = {
 
 interface PlannerProps {
   onNavigate: (route: Route) => void
-  onAskAssistant: (prompt: string) => void
+  /** Lets the Dashboard and notifications pick up added or finished sessions. */
+  onSessionsChanged: () => void
 }
 
-export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
+type Load = 'loading' | 'ready' | 'failed'
+
+export function Planner({ onNavigate, onSessionsChanged }: PlannerProps) {
+  const todayKey = dateKey(new Date())
   const [view, setView] = useState<'calendar' | 'agenda'>('calendar')
-  const [day, setDay] = useState(TODAY)
   const [week, setWeek] = useState(0)
+  const [selected, setSelected] = useState(todayKey)
   const [scheduling, setScheduling] = useState(false)
-  const [blocks, setBlocks] = useState<LearningBlock[]>(learningBlocks)
+  const [blocks, setBlocks] = useState<LearningBlock[]>([])
+  const [load, setLoad] = useState<Load>('loading')
+  const [hours, setHours] = useState<DayHours[] | null>(null)
+  const [hoursVersion, setHoursVersion] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [openedAt] = useState(() => Date.now())
 
-  const days = daysOfWeek(week)
-  const visibleBlocks = blocks.filter((b) => (b.week ?? 0) === week)
+  const weekStart = addDays(startOfWeek(new Date()), week * 7)
+  const weekKey = dateKey(weekStart)
+  const days = daysOfWeek(weekStart)
 
-  const updateBlock = (id: string, patch: Partial<LearningBlock>) =>
-    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)))
-  const markDone = (id: string) => updateBlock(id, { status: 'completed' })
-  const removeBlock = (id: string) => setBlocks((prev) => prev.filter((b) => b.id !== id))
+  useEffect(() => {
+    const controller = new AbortController()
+    listWeekBlocks(new Date(`${weekKey}T00:00`), controller.signal)
+      .then((loaded) => {
+        setBlocks(loaded)
+        setLoad('ready')
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoad('failed')
+      })
+    return () => controller.abort()
+  }, [weekKey])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    weeklyHours(new Date(`${weekKey}T00:00`), controller.signal)
+      .then(setHours)
+      .catch(() => {
+        if (!controller.signal.aborted) setHours(null)
+      })
+    return () => controller.abort()
+  }, [weekKey, hoursVersion])
+
+  /** Runs one change against the API, keeping the list and the rest of the app in sync. */
+  async function change(action: () => Promise<void>, failure: string) {
+    setError(null)
+    try {
+      await action()
+      onSessionsChanged()
+    } catch {
+      setError(failure)
+    }
+  }
+
+  const replace = (block: LearningBlock) => setBlocks((prev) => prev.map((b) => (b.id === block.id ? block : b)))
+
+  const markDone = (id: string) =>
+    change(async () => {
+      replace(await updateSession(id, { status: 'completed' }))
+      setHoursVersion((v) => v + 1)
+    }, 'Couldn’t mark that session complete.')
+
+  const toggleReminder = (block: LearningBlock) =>
+    change(
+      async () => replace(await updateSession(block.id, { reminder: !block.reminder })),
+      'Couldn’t update the reminder.',
+    )
+
+  const removeBlock = (id: string) =>
+    change(async () => {
+      await deleteSession(id)
+      setBlocks((prev) => prev.filter((b) => b.id !== id))
+      setHoursVersion((v) => v + 1)
+    }, 'Couldn’t delete that session.')
 
   function changeWeek(delta: number) {
     const next = week + delta
     setWeek(next)
-    setDay(next === 0 ? TODAY : daysOfWeek(next)[0].day)
+    setLoad('loading')
+    setSelected(next === 0 ? todayKey : dateKey(addDays(startOfWeek(new Date()), next * 7)))
   }
+
+  async function addSession(input: NewSession) {
+    const block = await createSession(input)
+    setBlocks((prev) => [...prev, block].sort((a, b) => a.startsAt.localeCompare(b.startsAt)))
+    setSelected(block.dateKey)
+    setScheduling(false)
+    onSessionsChanged()
+  }
+
+  const focusTarget =
+    blocks.find((b) => b.status === 'in-progress') ??
+    blocks.find((b) => b.status === 'upcoming' && new Date(b.startsAt).getTime() >= openedAt)
+  const todayHours = hours?.find((d) => d.date === todayKey)?.hours ?? 0
 
   return (
     <div className="planner">
       <header className="card planner__head">
         <div>
           <h1 className="h2 row gap-8 wrap">
-            Study Planner <Chip mono>Fall Term 2024</Chip>
+            Study Planner {week === 0 && <Chip mono>This week</Chip>}
           </h1>
           <p className="meta mono row gap-4">
-            <Icon name="calendar_today" /> Week of {monthDay(days[0].date)} - {monthDay(days[6].date)},{' '}
+            <Icon name="calendar_today" /> Week of {monthDay(days[0].date)} – {monthDay(days[6].date)},{' '}
             {days[6].date.getFullYear()}
             <button
               type="button"
@@ -91,6 +169,11 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
             <button type="button" className="icon-btn icon-btn--sm" aria-label="Next week" onClick={() => changeWeek(1)}>
               <Icon name="chevron_right" />
             </button>
+            {week !== 0 && (
+              <button type="button" className="link meta" onClick={() => changeWeek(-week)}>
+                Back to this week
+              </button>
+            )}
           </p>
         </div>
         <div className="row gap-8 wrap">
@@ -114,35 +197,32 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
       </header>
 
       {scheduling && (
-        <ScheduleForm
-          days={days}
-          week={week}
-          selectedDay={day}
-          onCancel={() => setScheduling(false)}
-          onAdd={(block) => {
-            setBlocks((prev) => [...prev, block])
-            setDay(block.day)
-            setScheduling(false)
-          }}
-        />
+        <ScheduleForm days={days} selectedKey={selected} onCancel={() => setScheduling(false)} onAdd={addSession} />
+      )}
+
+      {error && (
+        <p className="form-error" role="alert">
+          <Icon name="error" /> {error}
+        </p>
       )}
 
       <div className="planner__layout">
         <div className="stack-16 min-w-0">
-          <FocusCard />
+          <FocusCard target={focusTarget} todayHours={todayHours} />
 
           {view === 'calendar' && (
             <div className="card week" role="group" aria-label="Select a day">
               {days.map((d) => (
                 <button
-                  key={d.day}
+                  key={d.key}
                   type="button"
-                  className={`week__day ${d.weekend ? 'is-weekend' : ''}`}
-                  aria-pressed={day === d.day}
-                  onClick={() => setDay(d.day)}
+                  className={`week__day ${d.weekend ? 'is-weekend' : ''} ${d.key === todayKey ? 'is-today' : ''}`}
+                  aria-pressed={selected === d.key}
+                  onClick={() => setSelected(d.key)}
                 >
                   <span className="mono">{d.label}</span>
                   <strong>{d.day}</strong>
+                  {blocks.some((b) => b.dateKey === d.key) && <span className="week__dot" aria-hidden="true" />}
                 </button>
               ))}
             </div>
@@ -158,27 +238,36 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
                   <span className="dot dot--blue" aria-hidden="true" /> Computer Sci
                 </li>
                 <li>
-                  <span className="dot dot--teal" aria-hidden="true" /> Bio &amp; Med
+                  <span className="dot dot--teal" aria-hidden="true" /> Biology
                 </li>
                 <li>
-                  <span className="dot dot--violet" aria-hidden="true" /> Mathematics
+                  <span className="dot dot--violet" aria-hidden="true" /> Maths
+                </li>
+                <li>
+                  <span className="dot dot--slate" aria-hidden="true" /> Neuro
                 </li>
               </ul>
             </div>
-            {visibleBlocks.length === 0 ? (
+            {load === 'loading' ? (
+              <EmptyState icon="hourglass_top" title="Loading this week…" />
+            ) : load === 'failed' ? (
+              <EmptyState icon="cloud_off" title="Couldn’t load your sessions">
+                Check your connection and try again.
+              </EmptyState>
+            ) : blocks.length === 0 ? (
               <EmptyState icon="event_busy" title="Nothing scheduled this week">
                 Use “Schedule Session” to plan your first block.
               </EmptyState>
             ) : (
               <ul className="stack-8">
-                {visibleBlocks.map((b) => (
+                {blocks.map((b) => (
                   <BlockRow
                     key={b.id}
                     block={b}
-                    highlighted={view === 'calendar' && b.day === day}
+                    highlighted={view === 'calendar' && b.dateKey === selected}
                     onDone={() => markDone(b.id)}
                     onRemove={() => removeBlock(b.id)}
-                    onToggleReminder={() => updateBlock(b.id, { reminder: !b.reminder })}
+                    onToggleReminder={() => toggleReminder(b)}
                     onOpenNotes={() => onNavigate('notes')}
                   />
                 ))}
@@ -186,12 +275,12 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
             )}
           </section>
 
-          <WeeklyLoad />
+          <WeeklyLoad hours={hours} todayKey={todayKey} />
         </div>
 
         <div className="stack-16 min-w-0">
           <Agenda />
-          <AttachedResources onNavigate={onNavigate} onAskAssistant={onAskAssistant} />
+          <AttachedResources />
           <section className="card tip" aria-labelledby="tip-title">
             <div className="tip__media" aria-hidden="true">
               <Icon name="self_improvement" />
@@ -201,8 +290,7 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
                 Mindful Learning Tip
               </h2>
               <p className="meta">
-                Take a 5-minute cognitive reset every 25 minutes to boost neural consolidation and decrease study
-                fatigue.
+                Take a 5-minute reset every 25 minutes. Short breaks help memories consolidate and keep fatigue down.
               </p>
             </div>
           </section>
@@ -214,25 +302,25 @@ export function Planner({ onNavigate, onAskAssistant }: PlannerProps) {
 
 function ScheduleForm({
   days,
-  week,
-  selectedDay,
+  selectedKey,
   onAdd,
   onCancel,
 }: {
   days: PlannerDay[]
-  week: number
-  selectedDay: number
-  onAdd: (block: LearningBlock) => void
+  selectedKey: string
+  onAdd: (input: NewSession) => Promise<void>
   onCancel: () => void
 }) {
   const [title, setTitle] = useState('')
-  const [dayIndex, setDayIndex] = useState(() => Math.max(0, days.findIndex((d) => d.day === selectedDay)))
+  const [goal, setGoal] = useState('')
+  const [dayIndex, setDayIndex] = useState(() => Math.max(0, days.findIndex((d) => d.key === selectedKey)))
   const [time, setTime] = useState('16:00')
   const [minutes, setMinutes] = useState('45')
-  const [tag, setTag] = useState(SUBJECT_TAGS[0].tag)
+  const [subject, setSubject] = useState<Subject>(SUBJECTS[0])
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault()
     const cleanTitle = title.trim()
     const length = Number(minutes)
@@ -240,21 +328,23 @@ function ScheduleForm({
     if (!time) return setError('Pick a start time.')
     if (!Number.isInteger(length) || length < 1 || length > 480) return setError('Length must be 1–480 minutes.')
 
-    const target = days[dayIndex]
     const [hours, mins] = time.split(':').map(Number)
-    const clock = new Date(2000, 0, 1, hours, mins).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    onAdd({
-      id: `b-${Date.now()}`,
-      day: target.day,
-      week,
-      when: `${target.label}, ${monthDay(target.date)} • ${clock}`,
-      tag,
-      minutes: length,
-      tone: SUBJECT_TAGS.find((s) => s.tag === tag)!.tone,
-      status: 'upcoming',
-      title: cleanTitle,
-      detail: 'Added by you',
-    })
+    const day = days[dayIndex].date
+    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hours, mins)
+    setBusy(true)
+    setError(null)
+    try {
+      await onAdd({
+        title: cleanTitle,
+        subject,
+        starts_at: start.toISOString(),
+        duration_minutes: length,
+        goal: goal.trim() || undefined,
+      })
+    } catch {
+      setError('Couldn’t save the session. Check your connection and try again.')
+      setBusy(false)
+    }
   }
 
   return (
@@ -269,9 +359,9 @@ function ScheduleForm({
         </label>
         <label className="field">
           <span className="label">Subject</span>
-          <select className="input" value={tag} onChange={(e) => setTag(e.target.value)}>
-            {SUBJECT_TAGS.map((s) => (
-              <option key={s.tag}>{s.tag}</option>
+          <select className="input" value={subject} onChange={(e) => setSubject(e.target.value as Subject)}>
+            {SUBJECTS.map((s) => (
+              <option key={s}>{s}</option>
             ))}
           </select>
         </label>
@@ -279,7 +369,7 @@ function ScheduleForm({
           <span className="label">Day</span>
           <select className="input" value={dayIndex} onChange={(e) => setDayIndex(Number(e.target.value))}>
             {days.map((d, i) => (
-              <option key={d.day} value={i}>
+              <option key={d.key} value={i}>
                 {d.label}, {monthDay(d.date)}
               </option>
             ))}
@@ -302,6 +392,15 @@ function ScheduleForm({
             />
           </label>
         </div>
+        <label className="field form-grid__wide">
+          <span className="label">Goal (optional)</span>
+          <input
+            className="input"
+            value={goal}
+            placeholder="e.g. Finish problem set 4"
+            onChange={(e) => setGoal(e.target.value)}
+          />
+        </label>
       </div>
       {error && (
         <p className="form-error" role="alert">
@@ -312,8 +411,8 @@ function ScheduleForm({
         <button type="button" className="btn btn--ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button type="submit" className="btn btn--primary">
-          Add session
+        <button type="submit" className="btn btn--primary" disabled={busy}>
+          {busy ? 'Saving…' : 'Add session'}
         </button>
       </div>
     </form>
@@ -327,7 +426,8 @@ interface Attachment {
   url: string
 }
 
-function AttachedResources({ onNavigate, onAskAssistant }: PlannerProps) {
+/** Quick file shelf for this visit. Files stay in the browser; lasting ones belong in Resources. */
+function AttachedResources() {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const objectUrls = useRef(new Set<string>())
@@ -357,78 +457,58 @@ function AttachedResources({ onNavigate, onAskAssistant }: PlannerProps) {
     <section className="card panel" aria-labelledby="res-title">
       <div className="section-head">
         <h2 id="res-title" className="h4">
-          Attached Resources
+          Session Files
         </h2>
         <button type="button" className="link meta" onClick={() => fileInputRef.current?.click()}>
           <Icon name="attach_file" /> Attach
         </button>
         <input ref={fileInputRef} type="file" multiple hidden onChange={addFiles} />
       </div>
-      <ul className="stack-8">
-        <li className="resource">
-          <Icon name="picture_as_pdf" className="text-primary" />
-          <div className="min-w-0">
-            <p className="resource__name truncate">Lecture_09_Graph_Algorithms.pdf</p>
-            <p className="meta mono">3.4 MB • Annotated</p>
-          </div>
-          <button
-            type="button"
-            className="icon-btn icon-btn--sm"
-            aria-label="Open Lecture_09_Graph_Algorithms.pdf in Resources"
-            onClick={() => onNavigate('resources')}
-          >
-            <Icon name="open_in_new" />
-          </button>
-        </li>
-        <li className="resource">
-          <Icon name="style" className="text-primary" />
-          <div className="min-w-0">
-            <p className="resource__name truncate">AI Flashcard Deck: Graph Search</p>
-            <p className="meta mono">24 Generated Cards</p>
-          </div>
-          <button
-            type="button"
-            className="icon-btn icon-btn--sm"
-            aria-label="Open flashcard deck"
-            onClick={() => onAskAssistant('Quiz me on Mathematics')}
-          >
-            <Icon name="arrow_forward" />
-          </button>
-        </li>
-        {attachments.map((a) => (
-          <li key={a.id} className="resource">
-            <Icon name="draft" className="text-primary" />
-            <div className="min-w-0">
-              <p className="resource__name truncate">{a.name}</p>
-              <p className="meta mono">{formatFileSize(a.size)}</p>
-            </div>
-            <span className="row gap-4">
-              <a
-                className="icon-btn icon-btn--sm"
-                href={a.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={`Open ${a.name}`}
-              >
-                <Icon name="open_in_new" />
-              </a>
-              <button
-                type="button"
-                className="icon-btn icon-btn--sm icon-btn--danger"
-                aria-label={`Remove ${a.name}`}
-                onClick={() => remove(a)}
-              >
-                <Icon name="close" />
-              </button>
-            </span>
-          </li>
-        ))}
-      </ul>
+      {attachments.length === 0 ? (
+        <p className="meta">
+          Open files you need for this session. For anything you want to keep, use{' '}
+          <a className="link" href="#/resources">
+            Resources
+          </a>
+          .
+        </p>
+      ) : (
+        <ul className="stack-8">
+          {attachments.map((a) => (
+            <li key={a.id} className="resource">
+              <Icon name="draft" className="text-primary" />
+              <div className="min-w-0">
+                <p className="resource__name truncate">{a.name}</p>
+                <p className="meta mono">{formatFileSize(a.size)}</p>
+              </div>
+              <span className="row gap-4">
+                <a
+                  className="icon-btn icon-btn--sm"
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${a.name}`}
+                >
+                  <Icon name="open_in_new" />
+                </a>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--sm icon-btn--danger"
+                  aria-label={`Remove ${a.name}`}
+                  onClick={() => remove(a)}
+                >
+                  <Icon name="close" />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
 
-function FocusCard() {
+function FocusCard({ target, todayHours }: { target?: LearningBlock; todayHours: number }) {
   const timer = useFocusTimer()
   const elapsedPct = ((timer.total - timer.remaining) / timer.total) * 100
   const finished = timer.remaining === 0
@@ -442,16 +522,20 @@ function FocusCard() {
       <div className="focus__info">
         <p className="row gap-8 wrap">
           <Chip mono>
-            <span className="dot dot--blue" aria-hidden="true" /> Active Target
+            <span className="dot dot--blue" aria-hidden="true" /> {target ? 'Up next' : 'Free focus'}
           </Chip>
           <Chip tone="amber" mono>
-            🔥 4-day streak • 3.5 hrs today
+            {todayHours} {todayHours === 1 ? 'hr' : 'hrs'} studied today
           </Chip>
         </p>
         <h2 id="focus-title" className="h3">
-          Graph Search Algorithms
+          {target?.title ?? 'Deep work, your way'}
         </h2>
-        <p className="meta">Discrete Mathematics • Module 4: BFS, DFS &amp; Dijkstra Proofs</p>
+        <p className="meta">
+          {target
+            ? `${target.subject} • ${target.when}`
+            : 'No session queued. Start the timer and pick something to focus on.'}
+        </p>
         <p className="sr-only" aria-live="polite">
           {finished ? 'Focus session complete.' : ''}
         </p>
@@ -571,17 +655,57 @@ function BlockRow({
 }
 
 function Agenda() {
-  const [tasks, setTasks] = useState<AgendaTask[]>(initialAgenda)
+  const [tasks, setTasks] = useState<AgendaTask[]>([])
+  const [load, setLoad] = useState<Load>('loading')
   const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
   const done = tasks.filter((t) => t.done).length
+
+  useEffect(() => {
+    const controller = new AbortController()
+    listTodayTasks(controller.signal)
+      .then((loaded) => {
+        setTasks(loaded)
+        setLoad('ready')
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setLoad('failed')
+      })
+    return () => controller.abort()
+  }, [])
+
+  async function run(action: () => Promise<void>) {
+    setError(null)
+    try {
+      await action()
+    } catch {
+      setError('That didn’t save. Check your connection and try again.')
+    }
+  }
 
   function add(e: FormEvent) {
     e.preventDefault()
     const title = draft.trim()
     if (!title) return
-    setTasks((prev) => [...prev, { id: `a-${Date.now()}`, title, detail: 'Added just now', done: false }])
     setDraft('')
+    void run(async () => {
+      const task = await createTask(title)
+      setTasks((prev) => [...prev, task])
+    })
   }
+
+  const toggle = (task: AgendaTask) =>
+    run(async () => {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: !t.done } : t)))
+      const saved = await setTaskDone(task.id, !task.done)
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? saved : t)))
+    })
+
+  const remove = (task: AgendaTask) =>
+    run(async () => {
+      await deleteTask(task.id)
+      setTasks((prev) => prev.filter((t) => t.id !== task.id))
+    })
 
   return (
     <section className="card panel" aria-labelledby="agenda-title">
@@ -593,20 +717,17 @@ function Agenda() {
           {done} of {tasks.length} done
         </span>
       </div>
-      {tasks.length === 0 ? (
+      {load === 'loading' ? (
+        <p className="meta">Loading…</p>
+      ) : tasks.length === 0 ? (
         <EmptyState icon="task_alt" title="Your agenda is clear">
-          Add a rapid task below.
+          {load === 'failed' ? 'Couldn’t load today’s tasks.' : 'Add a quick task below.'}
         </EmptyState>
       ) : (
         <ul className="stack-4">
           {tasks.map((t) => (
             <li key={t.id} className={`task ${t.done ? 'is-done' : ''}`}>
-              <input
-                id={`task-${t.id}`}
-                type="checkbox"
-                checked={t.done}
-                onChange={() => setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)))}
-              />
+              <input id={`task-${t.id}`} type="checkbox" checked={t.done} onChange={() => toggle(t)} />
               <label htmlFor={`task-${t.id}`}>
                 <span className="task__title">{t.title}</span>
                 <span className="meta mono">{t.detail}</span>
@@ -615,7 +736,7 @@ function Agenda() {
                 type="button"
                 className="icon-btn icon-btn--sm task__remove"
                 aria-label={`Remove ${t.title}`}
-                onClick={() => setTasks((prev) => prev.filter((x) => x.id !== t.id))}
+                onClick={() => remove(t)}
               >
                 <Icon name="close" />
               </button>
@@ -623,13 +744,18 @@ function Agenda() {
           ))}
         </ul>
       )}
+      {error && (
+        <p className="form-error" role="alert">
+          <Icon name="error" /> {error}
+        </p>
+      )}
       <form className="quick-add" onSubmit={add}>
         <label className="sr-only" htmlFor="rapid-task">
-          Add rapid task
+          Add a task for today
         </label>
         <input
           id="rapid-task"
-          placeholder="Add rapid task..."
+          placeholder="Add a task for today..."
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
@@ -641,33 +767,41 @@ function Agenda() {
   )
 }
 
-function WeeklyLoad() {
-  const max = Math.max(...weeklyHours.map((d) => d.hours))
-  const todayIndex = weekDays.findIndex((d) => d.day === TODAY)
+function WeeklyLoad({ hours, todayKey }: { hours: DayHours[] | null; todayKey: string }) {
+  const total = hours ? Math.round(hours.reduce((sum, d) => sum + d.hours, 0) * 10) / 10 : 0
+  const max = Math.max(1, ...(hours ?? []).map((d) => d.hours))
   return (
     <section className="card panel" aria-labelledby="load-title">
       <div className="section-head">
         <h2 id="load-title" className="h4">
-          Cognitive Load &amp; Weekly Distribution
+          Weekly Study Hours
         </h2>
-        <span className="meta mono">Goal: 22 hrs / week (14.5 hrs completed)</span>
+        <span className="meta mono">{total} hrs completed this week</span>
       </div>
-      <ol className="bars">
-        {weeklyHours.map((d, i) => (
-          <li
-            key={i}
-            className={`bars__col ${i < todayIndex ? 'is-past' : i === todayIndex ? 'is-today' : ''}`}
-          >
-            <span className="bars__value mono">
-              {d.hours}h<span className="sr-only"> on {weekDays[i].label}</span>
-            </span>
-            <span className="bars__bar" style={{ height: `${(d.hours / max) * 100}%` }} aria-hidden="true" />
-            <span className="bars__label mono" aria-hidden="true">
-              {d.label}
-            </span>
-          </li>
-        ))}
-      </ol>
+      {!hours ? (
+        <p className="meta">Hours appear here as you complete sessions.</p>
+      ) : (
+        <ol className="bars">
+          {hours.map((d) => (
+            <li
+              key={d.date}
+              className={`bars__col ${d.date < todayKey ? 'is-past' : d.date === todayKey ? 'is-today' : ''}`}
+            >
+              <span className="bars__value mono">
+                {d.hours}h<span className="sr-only"> on {d.date}</span>
+              </span>
+              <span
+                className="bars__bar"
+                style={{ height: `${Math.max(2, (d.hours / max) * 100)}%` }}
+                aria-hidden="true"
+              />
+              <span className="bars__label mono" aria-hidden="true">
+                {d.label}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </section>
   )
 }

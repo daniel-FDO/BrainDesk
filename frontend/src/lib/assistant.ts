@@ -6,14 +6,15 @@
  * the body of `askAssistant` with a call to your backend (never call an LLM API
  * straight from the browser — it would expose your API key).
  */
-import { upcomingSessions } from '../data.ts'
-import type { ChatMessage, Note, Subject } from '../types.ts'
+import type { ChatMessage, Note, StudySession, Subject } from '../types.ts'
 import { SUBJECTS } from './subjects.ts'
+import { relativeTime } from './time.ts'
 
 export type Scope = 'all' | Subject
 
 export interface AssistantContext {
   notes: Note[]
+  upcoming: StudySession[]
   scope: Scope
 }
 
@@ -34,7 +35,7 @@ function rankNotes(notes: Note[], prompt: string): Note[] {
   if (words.length === 0) return []
   return notes
     .map((note) => {
-      const haystack = `${note.title} ${note.excerpt} ${note.tags.join(' ')}`.toLowerCase()
+      const haystack = `${note.title} ${note.body} ${note.tags.join(' ')}`.toLowerCase()
       return { note, score: words.filter((w) => haystack.includes(w)).length }
     })
     .filter((r) => r.score > 0)
@@ -72,10 +73,10 @@ function quiz(notes: Note[], scope: Scope): Reply {
 
 function summarize(note: Note | undefined): Reply {
   if (!note) return { text: 'There are no notes in this scope to summarize yet.' }
-  const points = sentences(note.excerpt)
+  const points = sentences(note.body || note.excerpt)
   return {
     text: [
-      `**${note.title}** (${note.subject} · ${note.updated})`,
+      `**${note.title}** (${note.subject} · edited ${relativeTime(note.updatedAt).toLowerCase()})`,
       ...(points.length ? points.map((p) => `- ${p}`) : ['- This note is still empty — add a few lines and ask again.']),
       note.tags.length ? `Key tags: ${note.tags.map((t) => `#${t}`).join(' ')}` : '',
     ]
@@ -85,11 +86,14 @@ function summarize(note: Note | undefined): Reply {
   }
 }
 
-function plan(): Reply {
+function plan(upcoming: StudySession[]): Reply {
+  if (upcoming.length === 0) {
+    return { text: "You don't have any study sessions planned yet. Open the Study Planner and schedule one — I'll keep track of it here." }
+  }
   return {
     text: [
       "Here's what's coming up on your study plan:",
-      ...upcomingSessions.map((s) => `- **${s.when}** · ${s.title} (${s.minutes} min) — ${s.goal.replace(/^Goal:\s*/, '')}`),
+      ...upcoming.slice(0, 5).map((s) => `- **${s.when}** · ${s.title} (${s.minutes} min)${s.goal ? ` — ${s.goal}` : ''}`),
       `Tip: the first one is next — a 5-minute skim of related notes beforehand makes it stick better.`,
     ].join('\n'),
   }
@@ -110,7 +114,7 @@ function explain(prompt: string, notes: Note[]): Reply {
   return {
     text: [
       `Based on your note **${best.title}**:`,
-      ...sentences(best.excerpt).map((s) => `- ${s}`),
+      ...sentences(best.body || best.excerpt).map((s) => `- ${s}`),
       related.length ? `This connects to ${related.map((n) => `**${n.title}**`).join(' and ')}.` : '',
       'Want me to turn this into a quick quiz?',
     ]
@@ -120,7 +124,7 @@ function explain(prompt: string, notes: Note[]): Reply {
   }
 }
 
-export async function askAssistant(prompt: string, { notes, scope }: AssistantContext): Promise<Reply> {
+export async function askAssistant(prompt: string, { notes, upcoming, scope }: AssistantContext): Promise<Reply> {
   // Simulated latency so the UI's "thinking" state is visible.
   await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500))
 
@@ -134,6 +138,6 @@ export async function askAssistant(prompt: string, { notes, scope }: AssistantCo
     return summarize(mentioned ?? inScope[0])
   }
   if (/\b(quiz|test me|flashcards?|practice)\b/.test(lower)) return quiz(inScope, effective)
-  if (/\b(plan|schedule|next|today|upcoming)\b/.test(lower)) return plan()
+  if (/\b(plan|schedule|next|today|upcoming)\b/.test(lower)) return plan(upcoming)
   return explain(prompt, inScope)
 }

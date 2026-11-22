@@ -1,17 +1,20 @@
 import { useState, type FormEvent } from 'react'
-import { upcomingSessions } from '../data.ts'
 import { logout } from '../lib/api.ts'
 import { Menu } from './Menu.tsx'
 import { Icon } from './ui.tsx'
+import type { StudySession } from '../types.ts'
 
 interface TopBarProps {
   onMenu: () => void
   menuOpen: boolean
   onSearch: (query: string) => void
   onCreateNote: () => void
+  upcoming: StudySession[]
+  /** Current page, shown in the breadcrumb. */
+  pageTitle: string
 }
 
-export function TopBar({ onMenu, menuOpen, onSearch, onCreateNote }: TopBarProps) {
+export function TopBar({ onMenu, menuOpen, onSearch, onCreateNote, upcoming, pageTitle }: TopBarProps) {
   const [query, setQuery] = useState('')
 
   function submit(event: FormEvent) {
@@ -36,7 +39,7 @@ export function TopBar({ onMenu, menuOpen, onSearch, onCreateNote }: TopBarProps
         <span>Workspace</span>
         <Icon name="chevron_right" />
         <span className="crumbs__current" aria-current="location">
-          Active Session
+          {pageTitle}
         </span>
       </nav>
 
@@ -63,12 +66,16 @@ export function TopBar({ onMenu, menuOpen, onSearch, onCreateNote }: TopBarProps
           label="Notifications"
           trigger={<Icon name="notifications" />}
           heading="Upcoming sessions"
-          items={upcomingSessions.map((s) => ({
-            label: s.title,
-            detail: `${s.when} · ${s.minutes} min`,
-            icon: 'event',
-            href: '#/planner',
-          }))}
+          items={
+            upcoming.length
+              ? upcoming.slice(0, 5).map((s) => ({
+                  label: s.title,
+                  detail: `${s.when} · ${s.minutes} min`,
+                  icon: 'event',
+                  href: '#/planner',
+                }))
+              : [{ label: 'Nothing scheduled', detail: 'Plan a session in the planner', icon: 'event_available', href: '#/planner' }]
+          }
         />
         <Menu
           label="Account"

@@ -3,9 +3,10 @@ import { Sidebar } from './components/Sidebar.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FocusTimerProvider } from './context/FocusTimer.tsx'
 import { ProfileProvider } from './context/Profile.tsx'
-import { notes as seedNotes } from './data.ts'
 import { useIsLoggedIn } from './hooks/useAuth.ts'
 import { useHashRoute } from './hooks/useHashRoute.ts'
+import { useNotes } from './hooks/useNotes.ts'
+import { useUpcomingSessions } from './hooks/useUpcomingSessions.ts'
 import { Assistant } from './pages/Assistant.tsx'
 import { Dashboard } from './pages/Dashboard.tsx'
 import { Login } from './pages/Login.tsx'
@@ -14,7 +15,6 @@ import { Planner } from './pages/Planner.tsx'
 import { Resources } from './pages/Resources.tsx'
 import { Settings } from './pages/Settings.tsx'
 import { Topics } from './pages/Topics.tsx'
-import type { Note } from './types.ts'
 
 const TITLES = {
   dashboard: 'Dashboard',
@@ -34,8 +34,12 @@ export default function App() {
 function Workspace() {
   const [route, navigate] = useHashRoute()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [notes, setNotes] = useState<Note[]>(seedNotes)
-  const [selectedNoteId, setSelectedNoteId] = useState(seedNotes[0].id)
+  const notesStore = useNotes()
+  const { notes } = notesStore
+  const upcoming = useUpcomingSessions()
+  const [chosenNoteId, setSelectedNoteId] = useState<string | null>(null)
+  // Until the user picks one, the most recently edited note is selected.
+  const selectedNoteId = chosenNoteId && notes.some((n) => n.id === chosenNoteId) ? chosenNoteId : (notes[0]?.id ?? null)
   const [noteQuery, setNoteQuery] = useState('')
   const [assistantPrompt, setAssistantPrompt] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement>(null)
@@ -53,20 +57,15 @@ function Workspace() {
     return () => window.removeEventListener('keydown', onKey)
   }, [menuOpen])
 
-  function createNote() {
-    const note: Note = {
-      id: `n-${Date.now()}`,
-      subject: 'Computer Science',
-      title: 'Untitled note',
-      excerpt: '',
-      tags: [],
-      updated: 'Just now',
-      favorite: false,
+  async function createNote() {
+    try {
+      const note = await notesStore.create()
+      setSelectedNoteId(note.id)
+      setNoteQuery('')
+      navigate('notes')
+    } catch {
+      window.alert('Couldn’t create a note. Check your connection and try again.')
     }
-    setNotes((prev) => [note, ...prev])
-    setSelectedNoteId(note.id)
-    setNoteQuery('')
-    navigate('notes')
   }
 
   function openNote(id: string) {
@@ -99,15 +98,28 @@ function Workspace() {
               menuOpen={menuOpen}
               onSearch={search}
               onCreateNote={createNote}
+              upcoming={upcoming.sessions}
+              pageTitle={TITLES[route]}
             />
             <main id="main" ref={mainRef} tabIndex={-1} className="page">
               {route === 'dashboard' && (
-                <Dashboard onNavigate={navigate} onCreateNote={createNote} onAskAssistant={askAssistant} />
+                <Dashboard
+                  notes={notes}
+                  notesStatus={notesStore.status}
+                  upcoming={upcoming.sessions}
+                  onNavigate={navigate}
+                  onCreateNote={createNote}
+                  onOpenNote={openNote}
+                  onAskAssistant={askAssistant}
+                />
               )}
               {route === 'notes' && (
                 <Notes
                   notes={notes}
-                  setNotes={setNotes}
+                  status={notesStore.status}
+                  saveState={notesStore.saveState}
+                  onUpdate={notesStore.update}
+                  onDelete={notesStore.remove}
                   selectedId={selectedNoteId}
                   onSelect={setSelectedNoteId}
                   query={noteQuery}
@@ -117,10 +129,11 @@ function Workspace() {
                 />
               )}
               {route === 'topics' && <Topics onNavigate={navigate} onAskAssistant={askAssistant} />}
-              {route === 'planner' && <Planner onNavigate={navigate} onAskAssistant={askAssistant} />}
+              {route === 'planner' && <Planner onNavigate={navigate} onSessionsChanged={upcoming.refresh} />}
               {route === 'assistant' && (
                 <Assistant
                   notes={notes}
+                  upcoming={upcoming.sessions}
                   onOpenNote={openNote}
                   initialPrompt={assistantPrompt}
                   onInitialPromptUsed={() => setAssistantPrompt(null)}

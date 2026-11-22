@@ -1,9 +1,10 @@
-import { useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { Chip, EmptyState, Icon, Tag } from '../components/ui.tsx'
-import { noteCounts } from '../data.ts'
+import type { LoadStatus, NoteEdit, SaveState } from '../hooks/useNotes.ts'
 import { filterNotes, type NoteFilter } from '../lib/filterNotes.ts'
 import { applyFormat, type FormatKind } from '../lib/markdown.ts'
 import { SUBJECTS, SUBJECT_TONE } from '../lib/subjects.ts'
+import { relativeTime } from '../lib/time.ts'
 import type { Note, Subject } from '../types.ts'
 
 const FORMAT_GROUPS: { kind: FormatKind; label: string; icon?: string; text?: string }[][] = [
@@ -28,7 +29,7 @@ const FORMAT_GROUPS: { kind: FormatKind; label: string; icon?: string; text?: st
 
 function downloadMarkdown(note: Note) {
   const tags = note.tags.map((t) => `#${t}`).join(' ')
-  const text = [`# ${note.title}`, tags, note.excerpt].filter(Boolean).join('\n\n') + '\n'
+  const text = [`# ${note.title}`, tags, note.body].filter(Boolean).join('\n\n') + '\n'
   const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }))
   const link = document.createElement('a')
   link.href = url
@@ -37,16 +38,28 @@ function downloadMarkdown(note: Note) {
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-const FILTERS: { id: NoteFilter; label: string; count: number }[] = [
-  { id: 'all', label: 'All Notes', count: noteCounts.all },
-  { id: 'favorites', label: 'Favorites', count: noteCounts.favorites },
-  ...SUBJECTS.map((s) => ({ id: s, label: s, count: noteCounts[s] })),
-]
+function filtersFor(notes: Note[]): { id: NoteFilter; label: string; count: number }[] {
+  return [
+    { id: 'all', label: 'All Notes', count: notes.length },
+    { id: 'favorites', label: 'Favorites', count: notes.filter((n) => n.favorite).length },
+    ...SUBJECTS.map((s) => ({ id: s, label: s, count: notes.filter((n) => n.subject === s).length })),
+  ]
+}
+
+const SAVE_LABEL: Record<SaveState, { icon: string; text: string }> = {
+  idle: { icon: 'cloud_done', text: 'Saved' },
+  saving: { icon: 'sync', text: 'Saving…' },
+  saved: { icon: 'check_circle', text: 'Autosaved' },
+  error: { icon: 'cloud_off', text: 'Not saved — check connection' },
+}
 
 interface NotesProps {
   notes: Note[]
-  setNotes: Dispatch<SetStateAction<Note[]>>
-  selectedId: string
+  status: LoadStatus
+  saveState: SaveState
+  onUpdate: (id: string, edit: NoteEdit) => void
+  onDelete: (id: string) => Promise<void>
+  selectedId: string | null
   onSelect: (id: string) => void
   query: string
   onQueryChange: (q: string) => void
@@ -56,7 +69,10 @@ interface NotesProps {
 
 export function Notes({
   notes,
-  setNotes,
+  status,
+  saveState,
+  onUpdate,
+  onDelete,
   selectedId,
   onSelect,
   query,
@@ -70,15 +86,38 @@ export function Notes({
   const visible = useMemo(() => filterNotes(notes, filter, query), [notes, filter, query])
   const selected = notes.find((n) => n.id === selectedId) ?? null
 
-  function update(id: string, patch: Partial<Note>) {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch, updated: 'Just now' } : n)))
+  const filters = useMemo(() => filtersFor(notes), [notes])
+
+  async function remove(note: Note) {
+    if (!window.confirm(`Delete “${note.title}”? This can’t be undone.`)) return
+    try {
+      await onDelete(note.id)
+    } catch {
+      window.alert('Couldn’t delete the note. Check your connection and try again.')
+    }
   }
 
-  function remove(note: Note) {
-    if (!window.confirm(`Delete “${note.title}”? This can’t be undone.`)) return
-    const rest = notes.filter((n) => n.id !== note.id)
-    setNotes(rest)
-    if (rest[0]) onSelect(rest[0].id)
+  if (status !== 'ready' || notes.length === 0) {
+    return (
+      <div className="notes">
+        <div className="card">
+          {status === 'loading' ? (
+            <EmptyState icon="hourglass_top" title="Loading your notes…" />
+          ) : status === 'failed' ? (
+            <EmptyState icon="cloud_off" title="Couldn’t load your notes">
+              Check your connection, then reload the page.
+            </EmptyState>
+          ) : (
+            <EmptyState icon="edit_note" title="Your notebook is empty">
+              Notes you write are saved to your account and power the AI assistant.
+              <button type="button" className="btn btn--primary empty__cta" onClick={onCreateNote}>
+                <Icon name="add" /> Write your first note
+              </button>
+            </EmptyState>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -112,7 +151,7 @@ export function Notes({
       </div>
 
       <div className="filters" role="group" aria-label="Filter notes">
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.id}
             type="button"
@@ -129,7 +168,9 @@ export function Notes({
       <div className={`notes__body notes__body--${view}`}>
         <section className="notes__list" aria-label="Notes">
           <div className="row between notes__list-head">
-            <span className="label">{noteCounts.all} Notes Indexed</span>
+            <span className="label">
+              {notes.length} {notes.length === 1 ? 'Note' : 'Notes'}
+            </span>
             <span className="meta mono">
               Sort: <span className="text-primary">Last modified</span>
             </span>
@@ -182,7 +223,7 @@ export function Notes({
                           <Tag key={t}>{t}</Tag>
                         ))}
                       </span>
-                      <span className="meta mono">{note.updated}</span>
+                      <span className="meta mono">{relativeTime(note.updatedAt)}</span>
                     </span>
                   </button>
                 </li>
@@ -196,7 +237,8 @@ export function Notes({
             <Editor
               key={selected.id}
               note={selected}
-              onChange={(patch) => update(selected.id, patch)}
+              saveState={saveState}
+              onChange={(edit) => onUpdate(selected.id, edit)}
               onDelete={() => remove(selected)}
               onAskAssistant={onAskAssistant}
             />
@@ -214,33 +256,32 @@ export function Notes({
 
 function Editor({
   note,
+  saveState,
   onChange,
   onDelete,
   onAskAssistant,
 }: {
   note: Note
-  onChange: (patch: Partial<Note>) => void
+  saveState: SaveState
+  onChange: (edit: NoteEdit) => void
   onDelete: () => void
   onAskAssistant: (prompt: string) => void
 }) {
-  const isFeatured = note.id === 'n1'
-  const [editingFeatured, setEditingFeatured] = useState(false)
   const [tagDraft, setTagDraft] = useState<string | null>(null)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
-  const showArticle = isFeatured && !editingFeatured
-  const words = note.excerpt.trim() ? note.excerpt.trim().split(/\s+/).length : 0
+  const words = note.body.trim() ? note.body.trim().split(/\s+/).length : 0
+  const save = SAVE_LABEL[saveState]
 
   function format(kind: FormatKind) {
     const textarea = bodyRef.current
-    const fallback = note.excerpt.length
+    const fallback = note.body.length
     const result = applyFormat(
-      note.excerpt,
+      note.body,
       textarea?.selectionStart ?? fallback,
       textarea?.selectionEnd ?? fallback,
       kind,
     )
-    onChange({ excerpt: result.value })
-    setEditingFeatured(true)
+    onChange({ body: result.value })
     // Runs after React has committed the new value, otherwise the caret jumps to the end.
     requestAnimationFrame(() => {
       bodyRef.current?.focus()
@@ -258,8 +299,8 @@ function Editor({
   return (
     <section className="card editor" aria-label="Note editor">
       <div className="editor__bar">
-        <span className="saved mono">
-          <Icon name="check_circle" /> Autosaved
+        <span className={`saved mono saved--${saveState}`} role="status">
+          <Icon name={save.icon} /> {save.text}
         </span>
         <label className="sr-only" htmlFor="note-subject">
           Subject
@@ -351,36 +392,25 @@ function Editor({
             ))}
           </span>
         ))}
-        {isFeatured && (
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setEditingFeatured((v) => !v)}>
-            {editingFeatured ? 'View article' : 'Edit text'}
-          </button>
-        )}
       </div>
 
       <div className="editor__content">
-        {showArticle ? (
-          <BackpropArticle />
-        ) : (
-          <>
-            <label className="sr-only" htmlFor="note-body">
-              Note body
-            </label>
-            <textarea
-              ref={bodyRef}
-              id="note-body"
-              className="editor__textarea"
-              placeholder="Start writing…"
-              value={note.excerpt}
-              onChange={(e) => onChange({ excerpt: e.target.value })}
-            />
-          </>
-        )}
+        <label className="sr-only" htmlFor="note-body">
+          Note body
+        </label>
+        <textarea
+          ref={bodyRef}
+          id="note-body"
+          className="editor__textarea"
+          placeholder="Start writing… Markdown works: # headings, - lists, **bold**."
+          value={note.body}
+          onChange={(e) => onChange({ body: e.target.value })}
+        />
       </div>
 
       <div className="editor__foot">
         <span className="meta mono">
-          {showArticle ? '1,240 words • 6 min read' : `${words} words • ${Math.max(1, Math.ceil(words / 200))} min read`}{' '}
+          {words} words • {Math.max(1, Math.ceil(words / 200))} min read{' '}
           • UTF-8 Markdown
         </span>
         <button type="button" className="btn btn--primary btn--sm" onClick={() => onAskAssistant(`Explain ${note.title}`)}>
@@ -388,49 +418,5 @@ function Editor({
         </button>
       </div>
     </section>
-  )
-}
-
-function BackpropArticle() {
-  return (
-    <article className="prose">
-      <aside className="callout">
-        <p className="callout__title">
-          <Icon name="lightbulb" /> Core Concept: What is Backpropagation?
-        </p>
-        <p>
-          Backpropagation (backward propagation of errors) is the mathematical engine of supervised neural networks.
-          It computes the partial derivative (gradient) of the loss function with respect to every weight and bias
-          parameter via the recursive application of the multivariate chain rule.
-        </p>
-      </aside>
-
-      <h2>1. The Multivariate Chain Rule Derivation</h2>
-      <p>
-        Consider a feed-forward layer where output <code>z = w · x + b</code> passes through an activation function{' '}
-        <code>a = σ(z)</code>. To evaluate the gradient of loss <code>L</code> with respect to the specific connection
-        weight <code>w</code>:
-      </p>
-
-      <figure className="formula">
-        <figcaption className="label">Gradient Descent Chain Expansion</figcaption>
-        <p className="formula__main mono">∂L / ∂w = (∂L / ∂y) · (∂y / ∂z) · (∂z / ∂w)</p>
-        <p className="formula__sub mono">
-          where ∂z / ∂w = x &nbsp;|&nbsp; δ<sub>l</sub> = ∇<sub>a</sub>L ⊙ σ′(z<sup>l</sup>)
-        </p>
-      </figure>
-
-      <h3>Key Architectural Invariants</h3>
-      <ul>
-        <li>
-          <strong>Vanishing Gradient Vulnerability:</strong> Saturating activations (such as Sigmoid or Tanh) cause
-          derivatives to collapse toward 0 at extreme values, causing upper layers to freeze during training.
-        </li>
-        <li>
-          <strong>Computational Complexity:</strong> Forward pass stores intermediate activations <code>aˡ</code> in
-          memory buffer; backward step reuses cached activations yielding linear <code>O(N)</code> runtime.
-        </li>
-      </ul>
-    </article>
   )
 }
