@@ -78,7 +78,7 @@ export function Dashboard({
           <p className="muted">
             {todayCount > 0
               ? `You’ve got ${todayCount} study ${todayCount === 1 ? 'session' : 'sessions'} today. Protect your momentum.`
-              : 'Nothing scheduled today — a good moment to get ahead.'}
+              : 'Nothing scheduled today a good moment to get ahead.'}
           </p>
         </div>
         <div className="hello__actions">
