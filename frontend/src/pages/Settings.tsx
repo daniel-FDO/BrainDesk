@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { Icon } from '../components/ui.tsx'
 import { useFocusTimer } from '../context/FocusTimer.tsx'
 import { useProfile } from '../context/Profile.tsx'
+import { useTheme } from '../hooks/useTheme.ts'
+import { switchTheme, type ThemeChoice } from '../lib/theme.ts'
 import {
   DEFAULT_DURATIONS,
   FOCUS_MODES,
@@ -18,6 +20,50 @@ function SavedBadge() {
     <span className="saved mono" role="status">
       <Icon name="check_circle" /> Saved
     </span>
+  )
+}
+
+const THEME_OPTIONS: { id: ThemeChoice; label: string; icon: string }[] = [
+  { id: 'light', label: 'Light', icon: 'light_mode' },
+  { id: 'dark', label: 'Dark', icon: 'dark_mode' },
+  { id: 'system', label: 'Match device', icon: 'contrast' },
+]
+
+function AppearanceSection() {
+  const { choice, resolved } = useTheme()
+  return (
+    <section className="card panel settings__section" aria-labelledby="appearance-title">
+      <div>
+        <h2 id="appearance-title" className="h4">
+          Appearance
+        </h2>
+        <p className="meta">
+          {choice === 'system'
+            ? `Following your device, currently ${resolved}.`
+            : 'Dark mode is easier on the eyes for late-night revision.'}
+        </p>
+      </div>
+      <div className="theme-picker" role="group" aria-label="Colour theme">
+        {THEME_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={`theme-option theme-option--${option.id}`}
+            aria-pressed={choice === option.id}
+            onClick={(e) => switchTheme(option.id, e.currentTarget)}
+          >
+            <span className="theme-option__preview" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="theme-option__label">
+              <Icon name={option.icon} /> {option.label}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -201,10 +247,11 @@ export function Settings() {
       <header className="page-head">
         <div>
           <h1 className="h1">Settings</h1>
-          <p className="muted">Your profile and timer, saved in this browser.</p>
+          <p className="muted">Your profile, look and timer.</p>
         </div>
       </header>
       <ProfileSection />
+      <AppearanceSection />
       <TimerSection />
     </div>
   )

@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { useFocusTimer } from '../context/FocusTimer.tsx'
+import { useMindfulBreak } from '../context/MindfulBreak.tsx'
 import { useProfile } from '../context/Profile.tsx'
 import { FOCUS_MODES, MAX_TIMER_MINUTES, MIN_TIMER_MINUTES, parseTimerMinutes } from '../lib/focusModes.ts'
 import { formatClock } from '../lib/format.ts'
@@ -18,6 +19,7 @@ const NAV: { route?: Route; label: string; icon: string }[] = [
 /** Sidebar timer. Clicking the clock swaps it for a minutes field for the active mode. */
 function FocusMini() {
   const timer = useFocusTimer()
+  const zen = useMindfulBreak()
   const [draft, setDraft] = useState<string | null>(null)
   const [invalid, setInvalid] = useState(false)
   const modeLabel = FOCUS_MODES[timer.mode].label
@@ -77,8 +79,14 @@ function FocusMini() {
     )
   }
 
+  const finished = timer.remaining === 0
+  const progress = timer.total > 0 ? 1 - timer.remaining / timer.total : 0
   return (
-    <div className="focus-mini">
+    <div
+      className={`focus-mini ${timer.running ? 'is-running' : ''} ${finished ? 'is-finished' : ''}`}
+      style={{ '--p': progress } as CSSProperties}
+    >
+      <span className="focus-mini__progress" aria-hidden="true" />
       <div>
         <p className="label">Focus Timer</p>
         <button
@@ -93,7 +101,15 @@ function FocusMini() {
         </button>
       </div>
       <div className="focus-mini__side">
-        <Icon name="timer" className="focus-mini__icon" />
+        <button
+          type="button"
+          className="icon-btn icon-btn--sm focus-mini__break"
+          aria-label={`Take a ${timer.durations.short}-minute mindful break`}
+          title="Mindful break"
+          onClick={(e) => zen.open(timer.durations.short, e.currentTarget)}
+        >
+          <Icon name="self_improvement" />
+        </button>
         <button type="button" className="btn btn--outline btn--xs" onClick={timer.running ? timer.pause : timer.start}>
           {timer.running ? 'Pause' : 'Start'}
         </button>
@@ -111,6 +127,29 @@ interface SidebarProps {
 export function Sidebar({ route, open, onClose }: SidebarProps) {
   const profile = useProfile()
   const onSettings = route === 'settings'
+  const navRef = useRef<HTMLElement>(null)
+  const pillRef = useRef<HTMLSpanElement>(null)
+
+  // Glide the white "you are here" pill to the active link. It's positioned
+  // directly (no state) and only animates after its first placement.
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    const pill = pillRef.current
+    const active = nav?.querySelector<HTMLElement>('.nav__link.is-active')
+    if (!nav || !pill) return
+    if (!active) {
+      pill.style.opacity = '0'
+      return
+    }
+    pill.style.opacity = '1'
+    // Measured on screen rather than with offsetTop: the links' entrance animation
+    // makes each <li> its own offset parent while it runs.
+    const top = active.getBoundingClientRect().top - nav.getBoundingClientRect().top
+    pill.style.height = `${active.offsetHeight}px`
+    pill.style.transform = `translateY(${top}px)`
+    const id = requestAnimationFrame(() => (pill.dataset.ready = 'true'))
+    return () => cancelAnimationFrame(id)
+  }, [route])
 
   return (
     <>
@@ -120,13 +159,14 @@ export function Sidebar({ route, open, onClose }: SidebarProps) {
           <span className="brand__mark" aria-hidden="true">
             <Icon name="view_week" filled />
           </span>
-          BrainDesk
+          <span className="brand__text">BrainDesk</span>
         </a>
 
-        <nav className="nav">
+        <nav className="nav" ref={navRef}>
+          <span ref={pillRef} className="nav__pill" aria-hidden="true" />
           <ul>
-            {NAV.map((item) => (
-              <li key={item.label}>
+            {NAV.map((item, i) => (
+              <li key={item.label} style={{ '--i': i } as CSSProperties}>
                 {item.route ? (
                   <a
                     href={`#/${item.route}`}
@@ -135,7 +175,7 @@ export function Sidebar({ route, open, onClose }: SidebarProps) {
                     onClick={onClose}
                   >
                     <Icon name={item.icon} filled={route === item.route} />
-                    {item.label}
+                    <span className="nav__text">{item.label}</span>
                   </a>
                 ) : (
                   <span className="nav__link is-disabled" aria-disabled="true" title="Not available yet">
@@ -158,7 +198,7 @@ export function Sidebar({ route, open, onClose }: SidebarProps) {
             onClick={onClose}
           >
             <Icon name="settings" filled={onSettings} />
-            Settings
+            <span className="nav__text">Settings</span>
           </a>
 
           <a href="#/settings" className="user-card" aria-label={`Edit profile: ${profile.name}`} onClick={onClose}>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FocusTimerProvider } from './context/FocusTimer.tsx'
+import { MindfulBreakProvider } from './context/MindfulBreak.tsx'
 import { ProfileProvider } from './context/Profile.tsx'
 import { useIsLoggedIn } from './hooks/useAuth.ts'
 import { useHashRoute } from './hooks/useHashRoute.ts'
@@ -87,63 +88,65 @@ function Workspace() {
   return (
     <ProfileProvider>
       <FocusTimerProvider>
-        <a className="skip-link" href="#main">
-          Skip to content
-        </a>
-        <div className="app">
-          <Sidebar route={route} open={menuOpen} onClose={() => setMenuOpen(false)} />
-          <div className="app__main">
-            <TopBar
-              onMenu={() => setMenuOpen(true)}
-              menuOpen={menuOpen}
-              onSearch={search}
-              onCreateNote={createNote}
-              upcoming={upcoming.sessions}
-              pageTitle={TITLES[route]}
-            />
-            <main id="main" ref={mainRef} tabIndex={-1} className="page">
-              {route === 'dashboard' && (
-                <Dashboard
-                  notes={notes}
-                  notesStatus={notesStore.status}
-                  upcoming={upcoming.sessions}
-                  onNavigate={navigate}
-                  onCreateNote={createNote}
-                  onOpenNote={openNote}
-                  onAskAssistant={askAssistant}
-                />
-              )}
-              {route === 'notes' && (
-                <Notes
-                  notes={notes}
-                  status={notesStore.status}
-                  saveState={notesStore.saveState}
-                  onUpdate={notesStore.update}
-                  onDelete={notesStore.remove}
-                  selectedId={selectedNoteId}
-                  onSelect={setSelectedNoteId}
-                  query={noteQuery}
-                  onQueryChange={setNoteQuery}
-                  onCreateNote={createNote}
-                  onAskAssistant={askAssistant}
-                />
-              )}
-              {route === 'topics' && <Topics onNavigate={navigate} onAskAssistant={askAssistant} />}
-              {route === 'planner' && <Planner onNavigate={navigate} onSessionsChanged={upcoming.refresh} />}
-              {route === 'assistant' && (
-                <Assistant
-                  notes={notes}
-                  upcoming={upcoming.sessions}
-                  onOpenNote={openNote}
-                  initialPrompt={assistantPrompt}
-                  onInitialPromptUsed={() => setAssistantPrompt(null)}
-                />
-              )}
-              {route === 'resources' && <Resources />}
-              {route === 'settings' && <Settings />}
-            </main>
+        <MindfulBreakProvider>
+          <a className="skip-link" href="#main">
+            Skip to content
+          </a>
+          <div className="app">
+            <Sidebar route={route} open={menuOpen} onClose={() => setMenuOpen(false)} />
+            <div className="app__main">
+              <TopBar
+                onMenu={() => setMenuOpen(true)}
+                menuOpen={menuOpen}
+                onSearch={search}
+                onCreateNote={createNote}
+                upcoming={upcoming.sessions}
+                pageTitle={TITLES[route]}
+              />
+              <main id="main" ref={mainRef} tabIndex={-1} className="page">
+                {route === 'dashboard' && (
+                  <Dashboard
+                    notes={notes}
+                    notesStatus={notesStore.status}
+                    upcoming={upcoming.sessions}
+                    onNavigate={navigate}
+                    onCreateNote={createNote}
+                    onOpenNote={openNote}
+                    onAskAssistant={askAssistant}
+                  />
+                )}
+                {route === 'notes' && (
+                  <Notes
+                    notes={notes}
+                    status={notesStore.status}
+                    saveState={notesStore.saveState}
+                    onUpdate={notesStore.update}
+                    onDelete={notesStore.remove}
+                    selectedId={selectedNoteId}
+                    onSelect={setSelectedNoteId}
+                    query={noteQuery}
+                    onQueryChange={setNoteQuery}
+                    onCreateNote={createNote}
+                    onAskAssistant={askAssistant}
+                  />
+                )}
+                {route === 'topics' && <Topics onNavigate={navigate} onAskAssistant={askAssistant} />}
+                {route === 'planner' && <Planner onNavigate={navigate} onSessionsChanged={upcoming.refresh} />}
+                {route === 'assistant' && (
+                  <Assistant
+                    notes={notes}
+                    upcoming={upcoming.sessions}
+                    onOpenNote={openNote}
+                    initialPrompt={assistantPrompt}
+                    onInitialPromptUsed={() => setAssistantPrompt(null)}
+                  />
+                )}
+                {route === 'resources' && <Resources />}
+                {route === 'settings' && <Settings />}
+              </main>
+            </div>
           </div>
-        </div>
+        </MindfulBreakProvider>
       </FocusTimerProvider>
     </ProfileProvider>
   )

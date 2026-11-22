@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { BreakLauncher } from '../components/BreakLauncher.tsx'
 import { Menu } from '../components/Menu.tsx'
 import { Chip, EmptyState, Icon, Ring } from '../components/ui.tsx'
 import { useFocusTimer } from '../context/FocusTimer.tsx'
@@ -281,19 +282,7 @@ export function Planner({ onNavigate, onSessionsChanged }: PlannerProps) {
         <div className="stack-16 min-w-0">
           <Agenda />
           <AttachedResources />
-          <section className="card tip" aria-labelledby="tip-title">
-            <div className="tip__media" aria-hidden="true">
-              <Icon name="self_improvement" />
-            </div>
-            <div className="tip__body">
-              <h2 id="tip-title" className="label text-primary">
-                Mindful Learning Tip
-              </h2>
-              <p className="meta">
-                Take a 5-minute reset every 25 minutes. Short breaks help memories consolidate and keep fatigue down.
-              </p>
-            </div>
-          </section>
+          <BreakLauncher />
         </div>
       </div>
     </div>

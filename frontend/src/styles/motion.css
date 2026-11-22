@@ -1,0 +1,584 @@
+/*
+ * Motion layer: ambient sidebar, sliding nav pill, button micro-interactions,
+ * page entrances and the theme controls. Everything here switches off under
+ * prefers-reduced-motion (bottom of file).
+ */
+:root {
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---------- Ink ripple (lib/ripple.ts adds the spans) ---------- */
+:where(.btn, .icon-btn, .filter, .nav__link, .segmented button, button.recent, .user-card, .menu__item) {
+  position: relative;
+}
+.ripple-host {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scale(0);
+  animation: ripple 0.6s ease-out forwards;
+}
+@keyframes ripple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* ---------- Buttons: icons pop, primaries shine, everything squishes ---------- */
+.btn .icon,
+.icon-btn .icon,
+.link .icon,
+.menu__item .icon {
+  transition: transform 0.35s var(--spring);
+}
+.btn:hover:not(:disabled) .icon {
+  transform: scale(1.15) rotate(-8deg);
+}
+.btn--primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / 0.35) 50%, transparent 60%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  pointer-events: none;
+}
+.btn--primary:hover:not(:disabled)::after {
+  background-position: -60% 0;
+  transition: background-position 0.75s var(--ease);
+}
+.icon-btn {
+  transition:
+    transform 0.15s var(--ease),
+    background-color 0.15s,
+    color 0.15s;
+}
+.icon-btn:hover:not(:disabled) .icon {
+  transform: scale(1.15);
+}
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.88);
+}
+.filter,
+.segmented button {
+  transition:
+    transform 0.15s var(--ease),
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.filter:active,
+.segmented button:active {
+  transform: scale(0.94);
+}
+.filter[aria-pressed='true'],
+.segmented button[aria-pressed='true'] {
+  animation: pop 0.4s var(--spring);
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.9);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+}
+
+/* Links: underline draws in, arrow nudges forward */
+.link {
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1.5px no-repeat;
+  transition: background-size 0.3s var(--ease);
+}
+.link:hover {
+  text-decoration: none;
+  background-size: 100% 1.5px;
+}
+.link:hover .icon {
+  transform: translateX(3px);
+}
+
+/* Menus drop in; items slide a touch on hover */
+.menu__panel {
+  transform-origin: top right;
+  animation: menu-in 0.22s var(--ease);
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+.menu__item {
+  transition:
+    background-color 0.15s,
+    padding-left 0.2s var(--ease);
+}
+.menu__item:hover:not(:disabled) {
+  padding-left: 12px;
+}
+
+/* Cards that open something lift towards the cursor */
+button.recent,
+.session,
+.resource,
+.block {
+  transition:
+    transform 0.2s var(--ease),
+    border-color 0.15s,
+    box-shadow 0.2s;
+}
+button.recent:hover,
+.session:hover {
+  transform: translateY(-2px);
+}
+.course .tile {
+  transition: transform 0.4s var(--spring);
+}
+.course:hover .tile {
+  transform: scale(1.1) rotate(-6deg);
+}
+
+/* ---------- Page entrance: sections rise in, one after another ---------- */
+.page > * > * {
+  animation: rise 0.55s var(--ease) backwards;
+}
+.page > * > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+.page > * > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+.page > * > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+.page > * > *:nth-child(5) {
+  animation-delay: 200ms;
+}
+.page > * > *:nth-child(n + 6) {
+  animation-delay: 250ms;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---------- Sidebar: drifting aurora + twinkling stars ---------- */
+.sidebar {
+  isolation: isolate;
+}
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+.sidebar::before,
+.sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.sidebar::before {
+  background:
+    radial-gradient(45% 30% at 50% 50%, rgb(160 120 240 / 0.5), transparent 70%),
+    radial-gradient(40% 28% at 50% 50%, rgb(230 100 180 / 0.3), transparent 70%),
+    radial-gradient(40% 26% at 50% 50%, rgb(90 150 240 / 0.28), transparent 70%);
+  background-size:
+    160% 70%,
+    170% 60%,
+    150% 60%;
+  background-repeat: no-repeat;
+  filter: blur(12px);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+@keyframes aurora {
+  0% {
+    background-position:
+      -60% -10%,
+      160% 70%,
+      20% 120%;
+  }
+  50% {
+    background-position:
+      120% 20%,
+      -40% 40%,
+      90% 80%;
+  }
+  100% {
+    background-position:
+      30% 60%,
+      80% -10%,
+      -30% 100%;
+  }
+}
+.sidebar::after {
+  background-image:
+    radial-gradient(1.2px 1.2px at 12% 18%, #fff, transparent),
+    radial-gradient(1px 1px at 72% 9%, #fff, transparent),
+    radial-gradient(1.4px 1.4px at 40% 34%, #fff, transparent),
+    radial-gradient(1px 1px at 88% 46%, #fff, transparent),
+    radial-gradient(1.2px 1.2px at 22% 62%, #fff, transparent),
+    radial-gradient(1px 1px at 64% 74%, #fff, transparent),
+    radial-gradient(1.3px 1.3px at 34% 88%, #fff, transparent),
+    radial-gradient(1px 1px at 80% 92%, #fff, transparent);
+  background-size: 100% 340px;
+  opacity: 0.55;
+  animation: twinkle 4.5s ease-in-out infinite alternate;
+}
+@keyframes twinkle {
+  from {
+    opacity: 0.2;
+  }
+  to {
+    opacity: 0.7;
+  }
+}
+
+/* Brand: the mark bobs gently; spins on hover; the word shimmers */
+.sidebar .brand__mark {
+  animation: bob 6s ease-in-out infinite;
+}
+@keyframes bob {
+  50% {
+    transform: translateY(-2px) rotate(-5deg);
+  }
+}
+.sidebar .brand:hover .brand__mark {
+  animation: spin-pop 0.7s var(--spring);
+}
+@keyframes spin-pop {
+  from {
+    transform: rotate(-200deg) scale(0.6);
+  }
+}
+.brand__text {
+  background: linear-gradient(100deg, #fff 0%, #fff 42%, var(--lav) 50%, #fff 58%, #fff 100%) 0 0 / 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 7s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Nav: links slide in one by one; a white pill glides to the active page */
+.nav {
+  position: relative;
+}
+.nav ul {
+  position: relative;
+  z-index: 1;
+}
+.nav__pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow:
+    0 3px 0 rgb(0 0 0 / 0.3),
+    0 0 24px -4px rgb(195 177 236 / 0.55);
+  opacity: 0;
+  pointer-events: none;
+}
+.nav__pill[data-ready='true'] {
+  transition:
+    transform 0.5s var(--spring),
+    height 0.3s var(--ease),
+    opacity 0.2s;
+}
+.sidebar .nav .nav__link.is-active,
+.sidebar .nav .nav__link.is-active:hover {
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar .nav li {
+  animation: nav-in 0.6s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms + 120ms);
+}
+@keyframes nav-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+.sidebar .nav__link {
+  transition:
+    color 0.35s var(--ease),
+    background-color 0.2s;
+}
+.sidebar .nav__link .icon {
+  transition: transform 0.4s var(--spring);
+}
+.sidebar .nav__text {
+  transition: transform 0.3s var(--ease);
+}
+.sidebar a.nav__link:hover .nav__text {
+  transform: translateX(3px);
+}
+.sidebar a.nav__link:hover .icon {
+  transform: scale(1.2) rotate(-10deg);
+}
+.sidebar .nav__link.is-active .icon {
+  animation: icon-land 0.6s var(--spring);
+}
+@keyframes icon-land {
+  from {
+    transform: scale(0.4) rotate(-30deg);
+  }
+}
+
+/* Focus timer: a progress bar fills along the bottom; it glows while running */
+.focus-mini {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
+}
+.focus-mini__progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(var(--p, 0));
+  background: linear-gradient(90deg, var(--lav), #f0abfc);
+  transition: transform 1s linear;
+}
+.sidebar .focus-mini.is-running {
+  border-color: rgb(195 177 236 / 0.5);
+  animation: glow 3s ease-in-out infinite;
+}
+@keyframes glow {
+  50% {
+    box-shadow: 0 0 22px -4px rgb(195 177 236 / 0.65);
+  }
+}
+.sidebar .focus-mini.is-running .focus-mini__time {
+  animation: breathe-text 3s ease-in-out infinite;
+}
+@keyframes breathe-text {
+  50% {
+    opacity: 0.75;
+  }
+}
+.sidebar .focus-mini__break {
+  color: var(--lav);
+}
+.sidebar .focus-mini__break:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+.sidebar .focus-mini.is-finished .focus-mini__break {
+  background: var(--lav);
+  color: var(--sky-deep);
+  animation: nudge 1.6s ease-in-out infinite;
+}
+@keyframes nudge {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(195 177 236 / 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgb(195 177 236 / 0);
+  }
+}
+
+/* Profile card: avatar gets a halo, chevron slides */
+.sidebar .user-card {
+  transition:
+    background-color 0.2s,
+    transform 0.2s var(--ease);
+}
+.sidebar .user-card:hover {
+  transform: translateY(-1px);
+}
+.sidebar .user-card .avatar {
+  transition: box-shadow 0.3s var(--ease);
+}
+.sidebar .user-card:hover .avatar {
+  box-shadow:
+    0 0 0 2px var(--sky-deep),
+    0 0 0 4px var(--lav);
+}
+.sidebar .user-card > .icon {
+  transition: transform 0.3s var(--ease);
+}
+.sidebar .user-card:hover > .icon {
+  transform: translateX(3px);
+}
+
+/* ---------- Theme toggle + picker ---------- */
+.theme-toggle__icon {
+  animation: theme-in 0.5s var(--spring);
+}
+@keyframes theme-in {
+  from {
+    transform: rotate(-120deg) scale(0.4);
+    opacity: 0;
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--border);
+  transition:
+    transform 0.2s var(--ease),
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.theme-option:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+.theme-option[aria-pressed='true'] {
+  border-color: var(--primary);
+  box-shadow: 0 3px 0 var(--primary);
+}
+.theme-option__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.84rem;
+}
+.theme-option[aria-pressed='true'] .theme-option__label .icon {
+  color: var(--primary);
+}
+/* Little window mock-ups: sidebar, a card, a line of text */
+.theme-option__preview {
+  position: relative;
+  height: 70px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f5f2;
+  border: 1px solid rgb(0 0 0 / 0.08);
+}
+.theme-option__preview span {
+  position: absolute;
+  border-radius: 4px;
+}
+.theme-option__preview span:nth-child(1) {
+  inset: 0 auto 0 0;
+  width: 26%;
+  border-radius: 0;
+  background: linear-gradient(180deg, #3e2e64, #261c40);
+}
+.theme-option__preview span:nth-child(2) {
+  top: 12px;
+  left: 34%;
+  right: 10px;
+  height: 26px;
+  background: #fff;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.08);
+}
+.theme-option__preview span:nth-child(3) {
+  top: 48px;
+  left: 34%;
+  width: 40%;
+  height: 7px;
+  background: #765aaf;
+}
+.theme-option--dark .theme-option__preview {
+  background: #0e1211;
+}
+.theme-option--dark .theme-option__preview span:nth-child(1) {
+  background: linear-gradient(180deg, #2a1f4a, #140f24);
+}
+.theme-option--dark .theme-option__preview span:nth-child(2) {
+  background: #1b211f;
+}
+.theme-option--dark .theme-option__preview span:nth-child(3) {
+  background: #a58ce0;
+}
+.theme-option--system .theme-option__preview {
+  background: linear-gradient(90deg, #f3f5f2 50%, #0e1211 50%);
+}
+/* The card starts at 34% and ends 10px from the right, so 50% of the preview is ~25% of the card. */
+.theme-option--system .theme-option__preview span:nth-child(2) {
+  background: linear-gradient(90deg, #fff 25%, #1b211f 25%);
+}
+
+/* ---------- Reduced motion: keep the colours, drop the movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar::before,
+  .sidebar::after,
+  .sidebar .brand__mark,
+  .brand__text,
+  .sidebar .nav li,
+  .sidebar .nav__link.is-active .icon,
+  .sidebar .focus-mini,
+  .sidebar .focus-mini__time,
+  .sidebar .focus-mini__break,
+  .page > * > *,
+  .filter,
+  .segmented button,
+  .menu__panel,
+  .theme-toggle__icon {
+    animation: none !important;
+  }
+  .nav__pill,
+  .focus-mini__progress,
+  .icon-btn,
+  .theme-option,
+  button.recent,
+  .session,
+  .sidebar .user-card {
+    transition: none !important;
+  }
+  .btn:hover .icon,
+  .icon-btn .icon,
+  .sidebar a.nav__link:hover .icon,
+  .sidebar a.nav__link:hover .nav__text,
+  .course:hover .tile,
+  button.recent:hover,
+  .session:hover,
+  .theme-option:hover,
+  .sidebar .user-card:hover {
+    transform: none !important;
+  }
+  .btn--primary::after {
+    display: none;
+  }
+}

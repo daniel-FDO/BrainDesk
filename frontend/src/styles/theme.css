@@ -82,15 +82,16 @@ body {
 }
 .btn--primary {
   background: var(--primary);
-  box-shadow: 0 4px 0 var(--primary-strong);
+  color: var(--on-primary);
+  box-shadow: 0 4px 0 var(--primary-edge);
 }
 .btn--primary:hover:not(:disabled) {
   background: var(--primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 5px 0 var(--primary-strong);
+  box-shadow: 0 5px 0 var(--primary-edge);
 }
 .btn--primary:active:not(:disabled) {
-  box-shadow: 0 1px 0 var(--primary-strong);
+  box-shadow: 0 1px 0 var(--primary-edge);
 }
 .btn--outline {
   border-color: var(--border-strong);
@@ -116,7 +117,7 @@ body {
   cursor: not-allowed;
 }
 .icon-btn--primary {
-  box-shadow: 0 3px 0 var(--primary-strong);
+  box-shadow: 0 3px 0 var(--primary-edge);
 }
 
 /* Toggles and chips with the same pressed feel */
@@ -128,6 +129,7 @@ body {
 .filter[aria-pressed='true'] {
   background: var(--text);
   border-color: var(--text);
+  color: var(--on-ink);
   box-shadow: 0 2px 0 var(--primary);
 }
 .segmented {
@@ -181,7 +183,7 @@ body {
 }
 .sidebar .nav__link.is-active,
 .sidebar .nav__link.is-active:hover {
-  background: var(--surface);
+  background: #fff;
   color: var(--sky-deep);
   box-shadow: 0 3px 0 rgb(0 0 0 / 0.3);
 }
@@ -234,7 +236,7 @@ body {
 
 /* ---------- Top bar ---------- */
 .topbar {
-  background: rgb(243 245 242 / 0.85);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -285,7 +287,7 @@ body {
   color: var(--on-sky);
 }
 .hero .btn--primary {
-  background: var(--surface);
+  background: #fff;
   color: var(--sky-deep);
   box-shadow: 0 4px 0 rgb(0 0 0 / 0.35);
 }
@@ -409,6 +411,7 @@ button.recent:hover {
 /* ---------- Planner ---------- */
 .week__day[aria-pressed='true'] {
   background: var(--text);
+  color: var(--on-ink);
   box-shadow: 0 3px 0 var(--primary);
 }
 .week__day.is-today:not([aria-pressed='true']) strong {
@@ -453,7 +456,7 @@ button.recent:hover {
 .auth__brand .brand__mark {
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 3px 0 var(--primary-strong);
+  box-shadow: 0 3px 0 var(--primary-edge);
 }
 .auth__title {
   font-weight: 800;
@@ -500,4 +503,44 @@ button.recent:hover {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+/* ---------- Text on coloured backgrounds follows the theme ---------- */
+.icon-btn--primary,
+.icon-btn--primary:hover:not(:disabled),
+.skip-link,
+.msg--user .msg__bubble,
+.app .avatar {
+  color: var(--on-primary);
+}
+.week__day[aria-pressed='true'] strong,
+.week__day[aria-pressed='true'] span {
+  color: var(--on-ink);
+}
+.sidebar .avatar {
+  color: var(--sky-deep);
+}
+
+/* ---------- Dark-mode touch-ups for the few hand-picked colours ---------- */
+[data-theme='dark'] .chip {
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+[data-theme='dark'] .figure {
+  background: linear-gradient(180deg, #1c2333, #141a26);
+}
+[data-theme='dark'] .figure__svg line {
+  stroke: #3b4a66;
+}
+[data-theme='dark'] .card {
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.45);
+}
+[data-theme='dark'] .hero {
+  box-shadow: 0 6px 0 #07050d;
+}
+[data-theme='dark'] .auth__card {
+  background: var(--surface);
+  color: var(--text);
+}
+[data-theme='dark'] .filter[aria-pressed='true'] {
+  box-shadow: 0 2px 0 var(--primary-edge);
 }

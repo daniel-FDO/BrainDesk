@@ -9,6 +9,9 @@
   --primary-strong: #4c3a73;
   --primary-soft: #f2edfa;
   --primary-tint: #e4d9f5;
+  --primary-edge: #4c3a73; /* hard bottom edge under primary buttons */
+  --on-primary: #ffffff; /* text on a --primary background */
+  --on-ink: #ffffff; /* text on a --text background (selected filters, days) */
 
   /* Subject tones (CS = blue, Bio = teal, Maths = violet slot, Neuro = slate) */
   --blue: #0f426e;
@@ -69,4 +72,53 @@
   --topbar-h: 60px;
 
   color-scheme: light;
+}
+
+/*
+ * Dark — "Night desk". Same structure, surfaces drop to a green-tinted ink, the
+ * violet lifts so it reads on dark, and primary buttons flip to dark text.
+ */
+[data-theme='dark'] {
+  --primary: #a58ce0;
+  --primary-hover: #b59fe8;
+  --primary-strong: #d8cbf6;
+  --primary-soft: #241d36;
+  --primary-tint: #3a2f58;
+  --primary-edge: #5b4690;
+  --on-primary: #140e22;
+  --on-ink: #101412;
+
+  --blue: #8fbbe9;
+  --blue-soft: #15263a;
+  --secondary: #5fd0a2;
+  --secondary-soft: #102a20;
+  --tertiary: #f38fb9;
+  --tertiary-soft: #331625;
+  --neutral: #a9b6c2;
+  --neutral-soft: #1e2528;
+
+  --amber: #f4b455;
+  --amber-soft: #2d2110;
+  --success: #5bd18b;
+  --success-soft: #10291a;
+  --danger: #ff8f86;
+  --danger-soft: #341716;
+
+  --bg: #0e1211;
+  --surface: #161b19;
+  --surface-2: #1b211f;
+  --surface-3: #242b28;
+  --border: #2a3330;
+  --border-strong: #3b4642;
+  --text: #ecf1ed;
+  --text-2: #b3beb8;
+  --text-3: #8f9b95;
+
+  --sky: #2a1f4a;
+  --sky-deep: #140f24;
+
+  --shadow-paper: rgb(0 0 0 / 0.5);
+  --focus-ring: 0 0 0 3px rgb(165 140 224 / 0.45);
+
+  color-scheme: dark;
 }

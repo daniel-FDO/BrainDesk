@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Menu } from '../components/Menu.tsx'
 import { Chip, EmptyState, Icon, Tag } from '../components/ui.tsx'
 import { useFocusTimer } from '../context/FocusTimer.tsx'
+import { useMindfulBreak } from '../context/MindfulBreak.tsx'
 import { useProfile } from '../context/Profile.tsx'
 import type { LoadStatus } from '../hooks/useNotes.ts'
 import { SUBJECTS, SUBJECT_TONE } from '../lib/subjects.ts'
@@ -47,6 +48,7 @@ export function Dashboard({
   onAskAssistant,
 }: DashboardProps) {
   const timer = useFocusTimer()
+  const zen = useMindfulBreak()
   const profile = useProfile()
   const [showSetup, setShowSetup] = useState(true)
   const [showSteps, setShowSteps] = useState(false)
@@ -82,6 +84,15 @@ export function Dashboard({
           </p>
         </div>
         <div className="hello__actions">
+          <button
+            type="button"
+            className="btn btn--outline zen-trigger"
+            onClick={(e) => zen.open(timer.durations.short, e.currentTarget)}
+          >
+            <span className="zen-trigger__orb" aria-hidden="true" />
+            Mindful break
+            <span className="kbd mono">{timer.durations.short}m</span>
+          </button>
           <button type="button" className="btn btn--outline" onClick={startFocus}>
             <Icon name="bolt" />
             Start Focus Session

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { logout } from '../lib/api.ts'
 import { Menu } from './Menu.tsx'
+import { ThemeToggle } from './ThemeToggle.tsx'
 import { Icon } from './ui.tsx'
 import type { StudySession } from '../types.ts'
 
@@ -62,6 +63,7 @@ export function TopBar({ onMenu, menuOpen, onSearch, onCreateNote, upcoming, pag
           <Icon name="add" />
           <span className="hide-sm">Create note</span>
         </button>
+        <ThemeToggle />
         <Menu
           label="Notifications"
           trigger={<Icon name="notifications" />}

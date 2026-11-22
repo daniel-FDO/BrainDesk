@@ -1,0 +1,622 @@
+/*
+ * Mindful Break: the full-screen overlay, its launcher card (Planner) and the
+ * Dashboard trigger. The overlay grows out of whatever button opened it.
+ */
+
+/* ---------- The desk behind sinks away while a break is open ---------- */
+.app {
+  transition:
+    filter 0.8s var(--ease),
+    transform 0.8s var(--ease);
+}
+html.is-zen {
+  overflow: hidden;
+}
+html.is-zen .app {
+  filter: blur(14px) saturate(0.4);
+  transform: scale(0.97);
+}
+
+/* ---------- Overlay ---------- */
+.zen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(120% 80% at 50% 110%, #3a2463 0%, transparent 60%),
+    linear-gradient(180deg, #120c22 0%, #1d1438 55%, #2a1b4b 100%);
+  animation: zen-in 1s var(--ease) both;
+  touch-action: manipulation;
+  user-select: none;
+}
+@keyframes zen-in {
+  from {
+    clip-path: circle(0 at var(--zx) var(--zy));
+  }
+  to {
+    clip-path: circle(150vmax at var(--zx) var(--zy));
+  }
+}
+.zen.is-leaving {
+  animation: zen-out 0.55s ease-in both;
+}
+@keyframes zen-out {
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+    filter: blur(8px);
+  }
+}
+
+.zen__aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: hue 60s linear infinite;
+}
+.zen__aurora span {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+.zen__aurora span:nth-child(1) {
+  left: -15vmax;
+  top: -20vmax;
+  background: radial-gradient(circle, #7c4ddc 0%, transparent 65%);
+  animation: float-a 24s ease-in-out infinite alternate;
+}
+.zen__aurora span:nth-child(2) {
+  right: -20vmax;
+  top: 10vmax;
+  background: radial-gradient(circle, #d6458f 0%, transparent 65%);
+  opacity: 0.4;
+  animation: float-b 30s ease-in-out infinite alternate;
+}
+.zen__aurora span:nth-child(3) {
+  left: 15vmax;
+  bottom: -30vmax;
+  background: radial-gradient(circle, #2f8fbf 0%, transparent 65%);
+  opacity: 0.4;
+  animation: float-c 27s ease-in-out infinite alternate;
+}
+@keyframes float-a {
+  to {
+    transform: translate(18vmax, 12vmax) scale(1.2);
+  }
+}
+@keyframes float-b {
+  to {
+    transform: translate(-16vmax, 10vmax) scale(0.85);
+  }
+}
+@keyframes float-c {
+  to {
+    transform: translate(10vmax, -14vmax) scale(1.15);
+  }
+}
+@keyframes hue {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+/* The Ripple scene cools to a moonlit-water blue */
+.zen--ripple .zen__aurora {
+  filter: hue-rotate(-60deg);
+  animation: none;
+}
+
+.zen__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.zen__top,
+.zen__stage,
+.zen__bottom {
+  position: relative;
+  z-index: 1;
+}
+
+/* Top bar */
+.zen__top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 18px clamp(16px, 3vw, 32px);
+  animation: zen-fade 1s 0.4s var(--ease) both;
+}
+.zen__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.75);
+}
+.zen__clock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(8px);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.zen__clock svg {
+  width: 30px;
+  height: 30px;
+  transform: rotate(-90deg);
+}
+.zen__clock circle {
+  fill: none;
+  stroke-width: 3;
+}
+.zen__clock-track {
+  stroke: rgb(255 255 255 / 0.15);
+}
+.zen__clock-value {
+  stroke: #c3b1ec;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s linear;
+}
+.zen__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.zen__icon-btn,
+.zen__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.08);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    background-color 0.2s,
+    transform 0.2s var(--ease),
+    border-color 0.2s;
+}
+.zen__icon-btn {
+  width: 40px;
+}
+.zen__pill {
+  padding: 0 16px;
+}
+.zen__icon-btn:hover,
+.zen__pill:hover {
+  background: rgb(255 255 255 / 0.16);
+  border-color: rgb(255 255 255 / 0.35);
+  transform: translateY(-1px);
+}
+.zen__icon-btn:active,
+.zen__pill:active {
+  transform: scale(0.95);
+}
+.zen__icon-btn[aria-pressed='true'] {
+  background: #c3b1ec;
+  border-color: #c3b1ec;
+  color: #1d1438;
+}
+.zen__pill--solid {
+  background: #fff;
+  border-color: #fff;
+  color: #1d1438;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.35);
+}
+.zen__pill--solid:hover {
+  background: #fff;
+}
+.zen__kbd {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.7);
+}
+.zen :focus-visible {
+  outline: 2px solid #c3b1ec;
+  outline-offset: 3px;
+}
+
+/* Stage */
+.zen__stage {
+  display: grid;
+  place-items: center;
+  padding: 0 20px;
+  min-height: 0;
+}
+
+/* Breathe: a glassy orb that grows and shrinks with the breath */
+.zen-orb {
+  --s: 0.55;
+  --d: 4s;
+  position: relative;
+  width: min(56vmin, 400px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  animation: zen-fade 1.2s 0.3s var(--ease) both;
+}
+.zen-orb__core,
+.zen-orb__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  transform: scale(var(--s));
+  transition: transform var(--d) cubic-bezier(0.45, 0, 0.55, 1);
+}
+.zen-orb__core {
+  background:
+    radial-gradient(circle at 38% 30%, rgb(255 255 255 / 0.95) 0%, rgb(255 255 255 / 0) 30%),
+    conic-gradient(from 0deg, #b79cf0, #f0a6d4, #9fd8f0, #b79cf0);
+  box-shadow:
+    0 0 60px 10px rgb(195 177 236 / 0.45),
+    inset 0 -20px 60px rgb(40 20 80 / 0.45);
+  opacity: 0.9;
+}
+.zen-orb__core::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 90deg, transparent, rgb(255 255 255 / 0.35), transparent 40%);
+  animation: orb-spin 9s linear infinite;
+  mix-blend-mode: overlay;
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.zen-orb__halo {
+  border: 1px solid rgb(255 255 255 / 0.28);
+  transition-delay: 0.15s;
+  transform: scale(calc(var(--s) * 1.18));
+}
+.zen-orb__halo--2 {
+  border-color: rgb(255 255 255 / 0.14);
+  transition-delay: 0.3s;
+  transform: scale(calc(var(--s) * 1.38));
+}
+.zen-orb__text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #1d1438;
+  text-shadow: 0 1px 12px rgb(255 255 255 / 0.6);
+}
+.zen-cue {
+  font-size: clamp(1.2rem, 0.9rem + 1.4vw, 1.9rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  animation: cue-in 0.7s var(--ease) both;
+}
+@keyframes cue-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+}
+.zen-count {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* Drift & Ripple: one calm sentence at a time */
+.zen-words {
+  max-width: 34ch;
+  text-align: center;
+}
+.zen-prompt {
+  font-size: clamp(1.4rem, 1rem + 2vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 30px rgb(20 10 40 / 0.6);
+  animation: prompt-in 2s var(--ease) both;
+}
+@keyframes prompt-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: scale(0.97);
+  }
+}
+.zen-hint {
+  margin-top: 14px;
+  color: rgb(255 255 255 / 0.6);
+  font-size: 0.9rem;
+  animation: zen-fade 2s 0.8s both;
+}
+
+/* Done */
+.zen-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  animation: prompt-in 1.2s var(--ease) both;
+}
+.zen-done__icon {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.1);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  box-shadow: 0 0 60px rgb(195 177 236 / 0.5);
+}
+.zen-done__icon .icon {
+  font-size: 38px;
+  color: #c3b1ec;
+}
+.zen-done__title {
+  font-size: clamp(1.8rem, 1.2rem + 2vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.zen-done__text {
+  color: rgb(255 255 255 / 0.72);
+  max-width: 36ch;
+}
+.zen-done__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Bottom: scene switcher */
+.zen__bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 26px;
+  animation: zen-fade 1s 0.6s var(--ease) both;
+}
+.zen__scenes,
+.zen__patterns {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(10px);
+}
+.zen__scenes button,
+.zen__patterns button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.75);
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition:
+    background-color 0.25s,
+    color 0.25s,
+    transform 0.2s var(--ease);
+}
+.zen__patterns button {
+  height: 30px;
+  font-size: 0.75rem;
+  padding: 0 12px;
+}
+.zen__scenes button:hover,
+.zen__patterns button:hover {
+  color: #fff;
+  background: rgb(255 255 255 / 0.08);
+}
+.zen__scenes button[aria-pressed='true'],
+.zen__patterns button[aria-pressed='true'] {
+  background: #fff;
+  color: #1d1438;
+}
+.zen__scenes button:active,
+.zen__patterns button:active {
+  transform: scale(0.94);
+}
+@keyframes zen-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .zen__top {
+    grid-template-columns: 1fr auto;
+  }
+  .zen__title {
+    display: none;
+  }
+  .zen__kbd {
+    display: none;
+  }
+  .zen__scenes button {
+    padding: 0 12px;
+  }
+}
+
+/* ---------- Planner launcher card ---------- */
+.zen-card {
+  overflow: hidden;
+}
+.zen-card__media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 132px;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  overflow: hidden;
+  background:
+    var(--grain),
+    radial-gradient(70% 90% at 15% 0%, #7c4ddc 0%, transparent 60%),
+    radial-gradient(60% 80% at 100% 100%, #d6458f 0%, transparent 60%),
+    linear-gradient(135deg, #2a1b4b, #120c22);
+  background-blend-mode: soft-light, normal, normal, normal;
+  background-size:
+    auto,
+    200% 200%,
+    200% 200%,
+    auto;
+  animation: card-sky 12s ease-in-out infinite alternate;
+}
+@keyframes card-sky {
+  to {
+    background-position:
+      0 0,
+      60% 40%,
+      30% 70%,
+      0 0;
+  }
+}
+.zen-card__media > .icon {
+  position: relative;
+  font-size: 34px;
+  transition: transform 0.4s var(--spring);
+}
+.zen-card__orb {
+  position: absolute;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, rgb(255 255 255 / 0.6), rgb(195 177 236 / 0.35) 45%, transparent 70%);
+  box-shadow: 0 0 40px rgb(195 177 236 / 0.5);
+  animation: card-breathe 8s ease-in-out infinite;
+}
+@keyframes card-breathe {
+  0%,
+  100% {
+    transform: scale(0.7);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
+.zen-card__play {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d1438;
+  font-weight: 700;
+  font-size: 0.75rem;
+  box-shadow: 0 3px 0 rgb(0 0 0 / 0.35);
+  transition: transform 0.3s var(--spring);
+}
+.zen-card__play .icon {
+  font-size: 18px;
+}
+.zen-card__media:hover > .icon {
+  transform: scale(1.15) translateY(-3px);
+}
+.zen-card__media:hover .zen-card__play {
+  transform: scale(1.08);
+}
+.zen-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 14px;
+}
+.zen-card__body .label {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-size: 0.78rem;
+}
+.zen-card__lengths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.zen-card__lengths .filter {
+  height: 28px;
+  font-size: 0.76rem;
+}
+
+/* ---------- Dashboard trigger: a little breathing orb in the button ---------- */
+.zen-trigger__orb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #c3b1ec 45%, #765aaf);
+  box-shadow: 0 0 10px rgb(118 90 175 / 0.55);
+  animation: card-breathe 6s ease-in-out infinite;
+}
+.zen-trigger:hover .zen-trigger__orb {
+  box-shadow: 0 0 16px rgb(118 90 175 / 0.85);
+}
+
+/* ---------- Reduced motion: still a calm screen, minus the movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .zen,
+  .zen.is-leaving {
+    animation: zen-fade 0.3s both;
+  }
+  .zen.is-leaving {
+    animation-direction: reverse;
+  }
+  html.is-zen .app {
+    transform: none;
+  }
+  .zen__aurora,
+  .zen__aurora span,
+  .zen-orb__core::after,
+  .zen-card__media,
+  .zen-card__orb,
+  .zen-trigger__orb {
+    animation: none;
+  }
+  .zen-cue,
+  .zen-prompt,
+  .zen-done {
+    animation-duration: 0.01s;
+  }
+}
