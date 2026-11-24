@@ -11,6 +11,7 @@ export function Login() {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const isRegister = mode === 'register'
 
@@ -42,8 +43,10 @@ export function Login() {
           </span>
           BrainDesk
         </div>
-        <h1 className="auth__title">{isRegister ? 'Create your account' : 'Welcome back'}</h1>
-        <p className="auth__lead">
+        <h1 className="auth__title" key={`t-${mode}`}>
+          {isRegister ? 'Create your account' : 'Welcome back'}
+        </h1>
+        <p className="auth__lead" key={`l-${mode}`}>
           {isRegister
             ? 'Your notes, sessions and resources, saved in one calm place.'
             : 'Pick up exactly where you left off.'}
@@ -68,25 +71,37 @@ export function Login() {
         </label>
         <label className="field">
           <span className="label">Password</span>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={isRegister ? 8 : undefined}
-            autoComplete={isRegister ? 'new-password' : 'current-password'}
-          />
+          <span className="input-wrap">
+            <input
+              className="input"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={isRegister ? 8 : undefined}
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
+            />
+            <button
+              type="button"
+              className="input-wrap__toggle"
+              onClick={() => setShowPassword((s) => !s)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+            >
+              <Icon key={String(showPassword)} name={showPassword ? 'visibility_off' : 'visibility'} />
+            </button>
+          </span>
         </label>
 
         {error && (
-          <p className="form-error" role="alert">
+          <p className="form-error" role="alert" key={error}>
             <Icon name="error" />
             {error}
           </p>
         )}
 
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>
+          {busy && <span className="btn__spinner" aria-hidden="true" />}
           {busy ? 'Please wait…' : isRegister ? 'Create account' : 'Log in'}
         </button>
         <button type="button" className="btn btn--ghost btn--block" onClick={switchMode}>

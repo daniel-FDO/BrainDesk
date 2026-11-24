@@ -1,0 +1,339 @@
+/*
+ * Intro layer: the full-screen splash that plays when the site opens, and the
+ * sign-in screen's entrance (drifting background, card rising in, fields
+ * staggering, password toggle, error shake). Reduced-motion rules at the bottom.
+ */
+
+/* ---------- Splash ---------- */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  color: #fff;
+  overflow: hidden;
+  background:
+    var(--grain),
+    radial-gradient(80% 60% at 15% 10%, #5c438d 0%, transparent 60%),
+    radial-gradient(70% 60% at 90% 90%, #733b76 0%, transparent 55%),
+    linear-gradient(160deg, #3e2e64 0%, #261c40 100%);
+  background-blend-mode: soft-light, normal, normal, normal;
+  transition:
+    opacity 0.65s var(--ease),
+    clip-path 0.65s var(--ease),
+    visibility 0s linear 0.65s;
+  clip-path: circle(150% at 50% 50%);
+}
+/* Leaving: the purple folds away into the centre, revealing the page beneath */
+.splash.is-leaving {
+  opacity: 0;
+  clip-path: circle(0% at 50% 50%);
+  visibility: hidden;
+}
+.splash.is-leaving > * {
+  transform: scale(0.9);
+  transition: transform 0.5s var(--ease);
+}
+
+/* Soft halo that breathes behind the mark */
+.splash__glow {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(195 177 236 / 0.35), transparent 65%);
+  filter: blur(20px);
+  animation: splash-glow 2.4s ease-in-out infinite;
+}
+@keyframes splash-glow {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* The logo: a rounded tile that springs in, then its three columns grow up */
+.splash__mark {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  width: 72px;
+  height: 72px;
+  padding: 18px 16px;
+  border-radius: 20px;
+  background: var(--primary, #765aaf);
+  box-shadow:
+    0 6px 0 #4f3a80,
+    0 0 50px -8px rgb(195 177 236 / 0.7);
+  animation: splash-tile 0.7s var(--spring) both;
+}
+@keyframes splash-tile {
+  from {
+    transform: scale(0) rotate(-160deg);
+    opacity: 0;
+  }
+}
+.splash__mark span {
+  flex: 1;
+  height: 100%;
+  border-radius: 4px;
+  background: #fff;
+  transform-origin: bottom;
+  animation: splash-col 0.55s var(--spring) both;
+}
+.splash__mark span:nth-child(1) {
+  animation-delay: 0.45s;
+}
+.splash__mark span:nth-child(2) {
+  animation-delay: 0.55s;
+}
+.splash__mark span:nth-child(3) {
+  animation-delay: 0.65s;
+}
+@keyframes splash-col {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* Wordmark: letters rise into place one at a time */
+.splash__word {
+  position: relative;
+  display: flex;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+.splash__word span {
+  display: inline-block;
+  animation: splash-letter 0.6s var(--ease) both;
+  animation-delay: calc(0.75s + var(--i) * 45ms);
+}
+@keyframes splash-letter {
+  from {
+    opacity: 0;
+    transform: translateY(18px) rotate(6deg);
+    filter: blur(4px);
+  }
+}
+
+.splash__tag {
+  position: relative;
+  margin: -8px 0 0;
+  color: var(--lav, #c3b1ec);
+  font-size: 0.9rem;
+  animation: splash-fade 0.6s var(--ease) 1.15s both;
+}
+@keyframes splash-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Loading line that fills while the intro plays */
+.splash__bar {
+  position: relative;
+  width: 140px;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.12);
+  overflow: hidden;
+  animation: splash-fade 0.4s var(--ease) 0.3s both;
+}
+.splash__bar span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--lav, #c3b1ec), #f0abfc);
+  transform-origin: left;
+  animation: splash-fill 1.5s cubic-bezier(0.65, 0, 0.35, 1) 0.35s both;
+}
+@keyframes splash-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ---------- Sign-in screen ---------- */
+.auth {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Two soft orbs drift slowly behind the card */
+.auth::before,
+.auth::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.auth::before {
+  width: 46vmax;
+  height: 46vmax;
+  top: -14vmax;
+  left: -10vmax;
+  background: rgb(160 120 240 / 0.35);
+  animation: orb-a 22s ease-in-out infinite alternate;
+}
+.auth::after {
+  width: 40vmax;
+  height: 40vmax;
+  bottom: -14vmax;
+  right: -12vmax;
+  background: rgb(230 100 180 / 0.25);
+  animation: orb-b 26s ease-in-out infinite alternate;
+}
+@keyframes orb-a {
+  to {
+    transform: translate(18vw, 22vh) scale(1.15);
+  }
+}
+@keyframes orb-b {
+  to {
+    transform: translate(-20vw, -18vh) scale(0.9);
+  }
+}
+
+/* The card rises and settles; its contents follow one after another */
+.auth__card {
+  animation: card-in 0.8s var(--spring) both;
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.94);
+  }
+}
+.auth__card > * {
+  animation: rise 0.55s var(--ease) both;
+  animation-delay: calc(0.2s + var(--i, 0) * 60ms);
+}
+.auth__card > :nth-child(1) {
+  --i: 0;
+}
+.auth__card > :nth-child(2) {
+  --i: 1;
+}
+.auth__card > :nth-child(3) {
+  --i: 2;
+}
+.auth__card > :nth-child(4) {
+  --i: 3;
+}
+.auth__card > :nth-child(5) {
+  --i: 4;
+}
+.auth__card > :nth-child(6) {
+  --i: 5;
+}
+.auth__card > :nth-child(n + 7) {
+  --i: 6;
+}
+/* The brand tile pops once the card has landed */
+.auth__brand .brand__mark {
+  animation: spin-pop 0.7s var(--spring) 0.35s both;
+}
+/* Password field with a show/hide button tucked inside */
+.input-wrap {
+  position: relative;
+  display: flex;
+}
+.input-wrap .input {
+  flex: 1;
+  padding-right: 44px;
+}
+.input-wrap__toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.input-wrap__toggle:hover {
+  background: var(--surface-2, rgb(0 0 0 / 0.05));
+  color: var(--text);
+}
+.input-wrap__toggle .icon {
+  font-size: 20px;
+  animation: theme-in 0.35s var(--spring);
+}
+
+/* Errors give the card a small shake so they can't be missed */
+.auth .form-error {
+  animation: shake 0.45s var(--ease);
+}
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+/* Busy button: a little spinner next to the label */
+.btn__spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .splash *,
+  .auth::before,
+  .auth::after,
+  .auth__card,
+  .auth__card > *,
+  .auth__brand .brand__mark,
+  .auth__title,
+  .auth__lead,
+  .auth .form-error,
+  .input-wrap__toggle .icon {
+    animation: none !important;
+  }
+  .splash,
+  .splash.is-leaving > * {
+    transition: opacity 0.15s linear !important;
+    clip-path: none !important;
+    transform: none !important;
+  }
+}

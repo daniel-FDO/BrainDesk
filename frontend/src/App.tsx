@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sidebar } from './components/Sidebar.tsx'
+import { Splash } from './components/Splash.tsx'
 import { TopBar } from './components/TopBar.tsx'
 import { FocusTimerProvider } from './context/FocusTimer.tsx'
 import { MindfulBreakProvider } from './context/MindfulBreak.tsx'
@@ -27,9 +28,10 @@ const TITLES = {
   settings: 'Settings',
 } as const
 
-/** Shows the login screen until there's a token, then the app. */
+/** Plays the intro, then shows the login screen until there's a token, then the app. */
 export default function App() {
-  return useIsLoggedIn() ? <Workspace /> : <Login />
+  const loggedIn = useIsLoggedIn()
+  return <Splash>{loggedIn ? <Workspace /> : <Login />}</Splash>
 }
 
 function Workspace() {

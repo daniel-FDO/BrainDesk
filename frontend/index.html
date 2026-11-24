@@ -17,6 +17,13 @@
     />
     <meta name="color-scheme" content="light dark" />
     <title>BrainDesk</title>
+    <style>
+      /* Same purple as the splash, so there's no white flash before the app loads. */
+      #root:empty {
+        min-height: 100vh;
+        background: linear-gradient(160deg, #3e2e64 0%, #261c40 100%);
+      }
+    </style>
     <script>
       // Apply the saved theme before first paint (same rules as src/lib/theme.ts).
       ;(function () {
